@@ -1,6 +1,5 @@
+#pragma once
 #include <cstdint>
-#include <complex>
-
 namespace IntWrapper
 {
     using i8  = std::int8_t;

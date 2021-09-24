@@ -1,7 +1,4 @@
 #pragma once
-#ifndef VARIANT_VISITOR
-#define VARIANT_VISITOR
-
 #include <variant>
 
 template<typename... Vs>
@@ -20,4 +17,3 @@ decltype(auto) VisitBy(T&& variant, Vs&&... visitors)
 	return std::visit(Visitor(std::forward<Vs>(visitors)...),
 					  std::forward<T>(variant));
 }
-#endif

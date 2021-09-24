@@ -2,7 +2,6 @@
 #include <memory>
 #include <stack>
 #include <functional>
-#include "LogHelper/CLogHelper.h"
 
 // RollbackHandle 的辅助类
 class RollBackHelper

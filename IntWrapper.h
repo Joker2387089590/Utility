@@ -128,7 +128,7 @@ namespace IntWrapper
 
 	inline namespace Literal
 	{
-		constexpr std::size_t operator""_sz(std::size_t z) { return z; }
+		constexpr auto operator""_sz(unsigned long long int z) { return z; }
 	}
 
 	using Port = u16; // TCP network port

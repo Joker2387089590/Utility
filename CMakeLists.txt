@@ -9,7 +9,11 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 add_library(Utility INTERFACE)
 file(GLOB HEADERS ${PROJECT_SOURCE_DIR}/*.h)
 target_sources(Utility INTERFACE ${HEADERS})
-target_include_directories(Utility INTERFACE ${PROJECT_SOURCE_DIR})
+target_include_directories(Utility INTERFACE
+	${PROJECT_SOURCE_DIR}
+	${PROJECT_SOURCE_DIR}/..)
 
-add_executable(test test.cpp)
-target_link_libraries(test PUBLIC Utility)
+if(UTILITY_EXAMPLE)
+	add_executable(test test.cpp)
+	target_link_libraries(test PUBLIC Utility)
+endif()

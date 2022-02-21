@@ -1,7 +1,7 @@
 #pragma once
-#include <cstdint>
-#include <cstddef>
-#include <numeric>
+#include <climits>      // CHAR_BIT
+#include <cstdint>      // std::int*_t
+#include <limits>       // std::numeric_limits
 #include <type_traits>
 
 namespace IntWrapper
@@ -24,29 +24,31 @@ namespace IntWrapper
 		using lint  = std::intmax_t;	// longest int
 		using luint = std::uintmax_t;	// longest uint
 		using sint  = signed char;		// shortest int
-		using suint = uchar;			// shortest uint
+        using suint = unsigned char;	// shortest uint
 
-		using pint = std::uintptr_t;	// pointer-length uint
-		using oint = std::ptrdiff_t;	// pointer-offset int
+        using pint = std::uintptr_t;	// pointer length
+        using oint = std::ptrdiff_t;	// pointer offset
 
 		namespace Detail
 		{
 			template<std::size_t size>
-			constexpr void fff() {}
+            constexpr void bitTester() {}
 
 			template<std::size_t size, typename T, typename... Ts>
-			constexpr auto fff()
+            constexpr auto bitTester()
 			{
 				if constexpr (sizeof(T) == size)
 					return T{};
 				else
-					return fff<size, Ts...>;
+                    return bitTester<size, Ts...>;
 			}
+
+            template<std::size_t bit, typename... Ts>
+            using TypeHasBit = decltype(bitTester<bit / CHAR_BIT, Ts...>());
 		}
 
 		template<std::size_t bit>
-		using Fs = decltype(Detail::fff<bit / CHAR_BIT,
-										float, double, long double>());
+        using Fs = Detail::TypeHasBit<bit, float, double, long double>;
 
 		using f32 = Fs<32>;
 		using f64 = Fs<64>;
@@ -134,7 +136,7 @@ namespace IntWrapper
 	using Port = u16; // TCP network port
 }
 
-// Add the marco BEFORE including this file if name conflicting.
-#ifndef DO_NOT_USING_NAMESPACE_INT_WRAPPER
+// To avoid name conflicting, add the marco BEFORE including this header.
+#ifndef DO_NOT_USING_NAMESPACE_INTWRAPPER
 	using namespace ::IntWrapper;
 #endif

@@ -1,12 +1,14 @@
 #pragma once
 #include <tuple>
 
+namespace LazyGenerator
+{
 /// 惰性求值的生成器
 template<typename F>
-class LazyGenerator
+class Lazy
 {
 public:
-	LazyGenerator(F func) : generator(std::move(func)) {}
+	Lazy(F func) : generator(std::move(func)) {}
 
 	/// 这个对象在遇到需要 func 的返回值时，调用 generator 生成
 	operator auto() { return generator(); }
@@ -14,6 +16,19 @@ public:
 private:
 	F generator;
 };
+
+template<typename F> Lazy(F) -> Lazy<F>;
+
+template<typename T, typename... Args>
+auto lazy(Args&&... args)
+{
+	return Lazy([&] {
+		if constexpr (std::is_default_constructible_v<T>)
+			return T{std::forward<Args>(args)...};
+		else
+			return T(std::forward<Args>(args)...);
+	});
+}
 
 struct EmplaceTag {};
 inline constexpr EmplaceTag emplaceTag;
@@ -44,3 +59,4 @@ struct TryEmplaceHelper : public T
 	TryEmplaceHelper(const TryEmplaceHelper&) = delete;
 	TryEmplaceHelper& operator=(const TryEmplaceHelper&) = delete;
 };
+}

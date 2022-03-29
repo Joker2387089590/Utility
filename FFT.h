@@ -10,12 +10,12 @@ class FFT
 public:
 	FFT(std::size_t N) :
 		N(N),
-		in(fftw_malloc(sizeof(Complex) * N)),
-		out(fftw_malloc(sizeof(Complex) * N)),
-		p(fftw_plan_dft_1d(N,
-						   static_cast<fftw_complex*>(in),
-						   static_cast<fftw_complex*>(out),
-						   FFTW_FORWARD, FFTW_PATIENT))
+		in(fftw_malloc(sizeof(double) * N)),
+		out(fftw_malloc(sizeof(Complex) * (N / 2 + 1))),
+		p(fftw_plan_dft_r2c_1d(int(N),
+							   static_cast<double*>(in),
+							   static_cast<fftw_complex*>(out),
+							   FFTW_ESTIMATE))
 	{}
 
 	~FFT()
@@ -26,29 +26,29 @@ public:
 	}
 
 public:
-	const Complex* input() const noexcept { return static_cast<Complex*>(in); }
+	const double* input() const noexcept { return static_cast<double*>(in); }
 	const Complex* output() const noexcept { return static_cast<Complex*>(out); }
 
 	const FFT& calc(const double* input) noexcept
 	{
-		std::transform(std::execution::par_unseq, input, input + N,
-					   this->input(), [](const double& i) noexcept { return Complex{i, 0}; });
+		std::copy(std::execution::par_unseq, input, input + N, this->input());
 		fftw_execute(p);
 		return *this;
 	}
 
-	template<template<typename> typename Vec>
+	template<template<typename...> typename Vec>
 	Vec<double> abs() const noexcept
 	{
-		Vec<double> vec(N);
+		const int outSize = int(N / 2 + 1);
+		Vec<double> vec(outSize);
 		auto o = this->output();
-		std::transform(std::execution::par_unseq, o, o + N,
+		std::transform(std::execution::par_unseq, o, o + outSize,
 					   vec.data(), [](const auto& d) noexcept { return std::abs(d); });
 		return vec;
 	}
 
 private:
-	Complex* input() noexcept { return static_cast<Complex*>(in); }
+	double* input() noexcept { return static_cast<double*>(in); }
 
 private:
 	const std::size_t N;

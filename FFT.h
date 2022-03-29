@@ -39,7 +39,7 @@ public:
 	template<template<typename...> typename Vec>
 	Vec<double> abs() const noexcept
 	{
-		const std::size_t outSize = N / 2 + 1;
+		const int outSize = int(N / 2 + 1);
 		Vec<double> vec(outSize);
 		auto o = this->output();
 		std::transform(std::execution::par_unseq, o, o + outSize,

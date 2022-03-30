@@ -28,6 +28,7 @@ public:
 public:
 	const double* input() const noexcept { return static_cast<double*>(in); }
 	const Complex* output() const noexcept { return static_cast<Complex*>(out); }
+    std::size_t size() const noexcept { return N; }
 
 	const FFT& calc(const double* input) noexcept
 	{
@@ -39,7 +40,7 @@ public:
 	template<template<typename...> typename Vec>
 	Vec<double> abs() const noexcept
 	{
-		const std::size_t outSize = N / 2 + 1;
+        const int outSize = int(N / 2 + 1);
 		Vec<double> vec(outSize);
 		auto o = this->output();
 		std::transform(std::execution::par_unseq, o, o + outSize,

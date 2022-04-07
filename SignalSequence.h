@@ -62,10 +62,15 @@ namespace SignalSequence
 		{
 			double operator*() const { return curT; }
 			Iter& operator++() { curT += dT; return *this; }
-			bool operator==(const Iter&) const { return curT < end; }
+
+			bool operator==(const Iter&) const { return curT < endT; }
+			bool operator!=(const Iter& o) const { return !(*this == o); }
+
+			auto begin() const { return *this; }
+			auto end() const { return *this; }
 
 			double curT;
-			const double end;
+			const double endT;
 			const double dT;
 		};
 
@@ -76,8 +81,6 @@ namespace SignalSequence
 		Seconds end;
 	};
 
-	auto begin(TimeRange::Iter iter) { return iter; }
-	auto end(TimeRange::Iter iter) { return iter; }
 
 	template<typename T = Seconds>
 	auto sin(double f, T phase = {})

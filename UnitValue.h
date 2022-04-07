@@ -2,6 +2,8 @@
 #include <cmath>
 #include <QString>
 
+namespace Units
+{
 struct UnitValue
 {
 public:
@@ -16,6 +18,10 @@ public:
 	QString str(char format = 'f', int precision = 3) const
 	{
 		return QString::number(count(), format, precision) + unit();
+	}
+	QString addUnit(QString u, char format = 'f', int precision = 3)
+	{
+		return this->str(format, precision) + u;
 	}
 
 public:
@@ -34,3 +40,6 @@ template<typename T> inline constexpr auto operator*(const UnitValue& l, const T
 template<typename T> inline constexpr auto operator/(const UnitValue& l, const T& r) noexcept { return UnitValue{r} / l; }
 template<typename T> inline constexpr auto operator+(const UnitValue& l, const T& r) noexcept { return UnitValue{r} + l; }
 template<typename T> inline constexpr auto operator-(const UnitValue& l, const T& r) noexcept { return UnitValue{r} - l; }
+}
+
+using Units::UnitValue;

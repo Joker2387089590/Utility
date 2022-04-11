@@ -1,23 +1,31 @@
 #pragma once
 #include <cmath>
+#include <array>
 #include <QString>
 
 namespace Units
 {
+inline constexpr char16_t unitSet[] = u"fpnμm\0kMG";
+inline constexpr QStringView unitSetStr(unitSet, std::array{unitSet}.size() - 1);
+
 struct UnitValue
 {
 public:
+
 	template<typename T> constexpr UnitValue(T&& v) noexcept : value(v) {}
 	operator QString()	const { return str(); }
 	operator double()	const { return value; }
 
 	int exp()       const { return (value == 0.) ? 0. : std::floor(std::log10(std::abs(value))); }
 	int unitExp()   const { return std::min(std::max(exp(), -15), 9); }
-	QChar unit()    const { return u"fpnμm\0kMG"[int(std::floor(unitExp() / 3.)) + 5]; }
+
+    QChar unit()    const { return unitSet[int(std::floor(unitExp() / 3.)) + 5]; }
 	double count()  const { return value * std::pow(10, std::ceil(-unitExp() / 3.) * 3); }
+
 	QString str(char format = 'f', int precision = 3) const
 	{
-		return QString::number(count(), format, precision) + unit();
+        const QChar units[2]{unit(), '\0'};
+        return QString::number(count(), format, precision) + QString(units);
 	}
 	QString addUnit(QString u, char format = 'f', int precision = 3)
 	{

@@ -6,13 +6,36 @@
 namespace Units
 {
 inline constexpr char16_t unitSet[] = u"fpnμm\0kMG";
-inline constexpr QStringView unitSetStr(unitSet, std::array{unitSet}.size() - 1);
+inline constexpr QStringView unitSetStr(unitSet);
+inline constexpr int unitExpValue[] = { -15, -12, -9, -6, -3, 0, 3, 6, 9 };
+inline constexpr double unitPower[] = { 1e-15, 1e-12, 1e-9, 1e-6, 1e-3, 1, 1e3, 1e6, 1e9 };
 
 struct UnitValue
 {
 public:
+	constexpr UnitValue(double v) noexcept : value(v) {}
+	UnitValue(const QString& text) : value(std::numeric_limits<double>::quiet_NaN())
+	{
+		QStringView numStr(text);
+		if(numStr.empty()) return;
 
-	template<typename T> constexpr UnitValue(T&& v) noexcept : value(v) {}
+		double power = 1;
+		if(QChar last = text.back(); !last.isDigit())
+		{
+			if(last == QChar('u')) last = QChar(u'μ');
+			int unitPos = unitSetStr.indexOf(last);
+			if(unitPos == -1) return;
+			power = unitPower[unitPos];
+			numStr.chop(1);
+		}
+
+		bool ok = false;
+		double num = numStr.toDouble(&ok);
+		if(!ok) return;
+
+		value = num * power;
+	}
+
 	operator QString()	const { return str(); }
 	operator double()	const { return value; }
 

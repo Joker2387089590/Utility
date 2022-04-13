@@ -1,5 +1,6 @@
 #pragma once
 #include <variant>
+#include <tuple>
 
 template<typename... Vs>
 struct Visitor : Vs...
@@ -11,25 +12,34 @@ struct Visitor : Vs...
 
 template<typename T>
 using Decay = std::remove_reference_t<std::remove_cv_t<T>>;
-
 template<typename... VsRef>
 Visitor(VsRef&&...) -> Visitor<Decay<VsRef>...>;
 
-template<typename T, typename... Vs>
-decltype(auto) VisitBy(T&& variant, Vs&&... visitors)
-{
-	return std::visit(Visitor(std::forward<Vs>(visitors)...),
-					  std::forward<T>(variant));
-}
-
 template<typename... Vs>
-struct Variant : public std::variant<Vs...>
+class Variant : public std::variant<Vs...>
 {
 	using Base = std::variant<Vs...>;
+public:
 	using Base::Base;
 
 	template<typename T> decltype(auto) as() { return std::get<T>(*this); }
 	template<typename T> decltype(auto) as() const { return std::get<T>(*this); }
+
+	template<typename T> auto* tryAs() noexcept { return std::get_if<T>(this); }
+	template<typename T> auto* tryAs() const noexcept { return std::get_if<T>(this); }
+
+	template<typename T> bool is() const noexcept { return std::holds_alternative(*this); }
+
+	template<typename... Fs>
+	decltype(auto) visit(Fs&&... fs)
+	{
+		return std::visit(Visitor(std::forward<Fs>(fs)...), *this);
+	}
+	template<typename... Fs>
+	decltype(auto) visit(Fs&&... fs) const
+	{
+		return std::visit(Visitor(std::forward<Fs>(fs)...), *this);
+	}
 };
 
 template<std::size_t i, typename... Ts> struct AtHelper;
@@ -46,10 +56,8 @@ template<std::size_t i, typename T>
 struct IndexedType
 {
 	using type = T;
-	template<typename U>
-	constexpr IndexedType(U&& d) : data(std::forward<U>(d)) {}
+	template<typename U> constexpr IndexedType(U&& d) : data(std::forward<U>(d)) {}
 	constexpr IndexedType() : data() {}
-
 	T data;
 };
 
@@ -58,7 +66,7 @@ struct TypeList { template<std::size_t... is> class SizeList; };
 
 template<typename... Ts>
 template<std::size_t... is>
-class TypeList<Ts...>::SizeList : protected IndexedType<is, Ts>...
+class TypeList<Ts...>::SizeList : private IndexedType<is, Ts>...
 {
 public:
 	template<std::size_t i> using At = typename AtHelper<i, Ts...>::type;
@@ -106,15 +114,6 @@ protected:
 	auto filter(C c) { return filterHelper(filterResult, c, self<is>()...); }
 	template<typename C>
 	auto filter(C c) const { return filterHelper(filterResult, c, self<is>()...); }
-
-	template<typename F>
-	auto map(F f) {
-		return forEach([f](auto*... ts){
-			auto r = [f](auto* t) {
-				using R = decltype(f(t));
-			};
-		});
-	}
 
 private:
 	template<typename F, typename T, typename... Ti>
@@ -173,15 +172,20 @@ template<typename... Ts>
 using ReduceTypeSize =
 	decltype(reduceTypeSize<Ts...>(std::make_index_sequence<sizeof...(Ts)>{}));
 
+template<typename... Ts> auto makeTuple(Ts&&... ts);
+
 template<typename... Ts>
 class Tuple : public ReduceTypeSize<Ts...>
 {
 	using Base = ReduceTypeSize<Ts...>;
 public:
 	template<typename... Args>
-	Tuple(Args&&... args) : Base(std::forward<Args>(args)...) {}
+	constexpr Tuple(Args&&... args) : Base(std::forward<Args>(args)...) {}
 
-	Tuple() : Base() {}
+	constexpr Tuple() : Base() {}
+
+	// TODO: Tuple(std::tuple<...>)
+	// TODO: Tuple(std::pair<...>)
 
 	using Base::At;
 	using Base::get;
@@ -203,20 +207,42 @@ public:
 		return other.forEach(vOther);
 	}
 
-	template<typename T>
-	auto removeType() const
+	template<typename... T>
+	auto remove() const
 	{
 		auto c = [](auto* t) {
 			using Ti = typename std::decay_t<decltype(*t)>::type;
-			return std::bool_constant<!std::is_same_v<T, Ti>>{};
+			constexpr bool isOneOf = std::disjunction_v<std::is_same<T, Ti>...>;
+			return std::bool_constant<!isOneOf>{};
 		};
-		auto f = [](auto*... good) { return Tuple<typename std::decay_t<decltype(*good)>::type...>(good->data...); };
+		auto f = [](auto*... good) {
+			return Tuple<typename std::decay_t<decltype(*good)>::type...>(good->data...);
+		};
 		return Base::filter(c)(f);
+	}
+
+	template<typename F>
+	auto map(F f)
+	{
+		return Base::forEach([f](auto*... ts) { return makeTuple(f(ts->data)...); });
 	}
 };
 
 template<typename... Ts> Tuple(Ts...) -> Tuple<Ts...>;
+template<typename... Ts> Tuple(std::tuple<Ts...>) -> Tuple<Ts...>;
+template<typename T1, typename T2> Tuple(std::pair<T1, T2>) -> Tuple<T1, T2>;
+
+template <typename T> struct UnwrapRef { using type = T; };
+template <typename T> struct UnwrapRef<std::reference_wrapper<T>> { using type = T&; };
+template <typename T>
+using UnwrapDecay = typename UnwrapRef<typename std::decay<T>::type>::type;
+
+template<typename... Ts>
+auto makeTuple(Ts&&... ts) { return Tuple<UnwrapDecay<Ts>...>(std::forward<Ts>(ts)...); }
 
 void foo()
 {
+	std::tuple<int> x;
+	Tuple<int, char, double, double, char, int> t;
+	static_assert(std::is_same_v<decltype(t.remove<double>()), Tuple<int, char, char, int>>);
 }

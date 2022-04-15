@@ -1,6 +1,7 @@
 #pragma once
 #include <tuple>
 
+/// At
 template<std::size_t i, typename... Ts> struct AtHelper;
 
 template<std::size_t i, typename T, typename... Ts>
@@ -11,6 +12,28 @@ struct AtHelper<0, T, Ts...> { using type = T; };
 
 template<std::size_t i> struct AtHelper<i> {};
 
+/// Array to Tuple
+template<typename... Ts> struct TList {};
+
+template<template<typename...> typename Tu, std::size_t i, typename T, typename Ts>
+struct ArrayToTupleTrait;
+
+template<template<typename...> typename Tu, std::size_t i, typename T, typename... Ts>
+struct ArrayToTupleTrait<Tu, i, T, TList<Ts...>>
+{
+	using type = typename ArrayToTupleTrait<Tu, i - 1, T, TList<Ts..., T>>::type;
+};
+
+template<template<typename...> typename Tu, typename T, typename... Ts>
+struct ArrayToTupleTrait<Tu, 0, T, TList<Ts...>>
+{
+	using type = Tu<Ts...>;
+};
+
+template<template<typename...> typename Tu, typename T, std::size_t N>
+using ArrayToTuple = typename ArrayToTupleTrait<Tu, N, T, TList<>>::type;
+
+/// TypeList
 template<std::size_t i, typename T>
 struct IndexedType
 {
@@ -53,10 +76,16 @@ public:
 	}
 
 	template<std::size_t i>
-	constexpr auto get() const { return self<i>()->data; }
+	constexpr const auto& get() const { return self<i>()->data; }
 
 	template<typename T>
-	constexpr auto get() const { return get<indexOfFirst<T>()>(); }
+	constexpr const auto& get() const { return get<indexOfFirst<T>()>(); }
+
+	template<std::size_t i>
+	constexpr auto& get() { return self<i>()->data; }
+
+	template<typename T>
+	constexpr auto& get() { return get<indexOfFirst<T>()>(); }
 
 	static constexpr std::size_t size() { return sizeof...(Ts); }
 
@@ -146,6 +175,12 @@ public:
 	// TODO: Tuple(std::tuple<...>)
 	// TODO: Tuple(std::pair<...>)
 
+	template<typename T, std::size_t N>
+	Tuple(std::array<T, N>)
+	{
+
+	}
+
 	using Base::At;
 	using Base::get;
 	using Base::indexOfFirst;
@@ -196,6 +231,7 @@ public:
 	auto tie() const noexcept { return this->map([](auto& data) { return std::cref(data); }); }
 };
 
+// TODO: std
 template<typename... Ts> Tuple(Ts...) -> Tuple<Ts...>;
 template<typename... Ts> Tuple(std::tuple<Ts...>) -> Tuple<Ts...>;
 template<typename T1, typename T2> Tuple(std::pair<T1, T2>) -> Tuple<T1, T2>;

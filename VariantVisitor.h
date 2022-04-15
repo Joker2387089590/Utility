@@ -4,6 +4,8 @@
 
 namespace Variants::Detail
 {
+template<typename... Ts> struct TList {};
+
 template<typename F> struct FuncPtrWrapper { using type = F; };
 
 template<typename R, typename... Args>
@@ -37,7 +39,7 @@ class UniqueVariant : public std::variant<Vs...>
 public:
 	using Base::Base;
 
-	static std::size_t typeCount() { return sizeof...(Vs); }
+    static constexpr std::size_t typeCount() { return sizeof...(Vs); }
 
 	template<typename T> decltype(auto) as() { return std::get<T>(*this); }
 	template<typename T> decltype(auto) as() const { return std::get<T>(*this); }
@@ -45,7 +47,7 @@ public:
 	template<typename T> auto* tryAs() noexcept { return std::get_if<T>(this); }
 	template<typename T> auto* tryAs() const noexcept { return std::get_if<T>(this); }
 
-	template<typename T> bool is() const noexcept { return std::holds_alternative(*this); }
+	template<typename T> bool is() const noexcept { return std::holds_alternative<T>(*this); }
 
 	template<typename... Fs>
 	decltype(auto) visit(Fs&&... fs)
@@ -57,17 +59,7 @@ public:
 	{
 		return std::visit(Visitor(std::forward<Fs>(fs)...), *this);
 	}
-
-	struct Tag
-	{
-		Tuple<Vs...> tags{UniqueVariant(Vs{})...};
-		template<typename T>
-		T& tag() { return tags.template get<T>().template as<T>(); }
-	};
-	static auto makeTags() { return Tag{}; }
 };
-
-template<typename... Ts> struct TList {};
 
 template<typename Ts, typename... Vs> struct UniqueTypeTrait;
 
@@ -83,8 +75,17 @@ struct UniqueTypeTrait<TList<Ts...>, V, Vs...>
 template<typename... Ts>
 struct UniqueTypeTrait<TList<Ts...>> { using type = UniqueVariant<Ts...>; };
 
+template<typename... Ts> struct TakeOneTrait;
+
 template<typename T, typename... Ts>
-using Variant = typename UniqueTypeTrait<TList<T>, Ts...>::type;
+struct TakeOneTrait<T, Ts...>
+{
+	using type = typename UniqueTypeTrait<TList<T>, Ts...>::type;
+};
+
+template<> struct TakeOneTrait<> { using type = UniqueVariant<std::monostate>; };
+
+template<typename... Ts> using Variant = typename TakeOneTrait<Ts...>::type;
 }
 
 namespace Variants

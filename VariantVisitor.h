@@ -24,13 +24,11 @@ template<typename... Vs>
 struct Visitor : FuncPtrWrapper<Vs>::type...
 {
 	template<typename V> using Base = typename FuncPtrWrapper<V>::type;
-	template<typename... VsRef>
-	Visitor(VsRef&&... visitors) : Base<Vs>(std::forward<VsRef>(visitors))... {}
 	using Base<Vs>::operator()...;
 };
 
-template<typename... VsRef>
-Visitor(VsRef&&...) -> Visitor<std::remove_pointer_t<std::decay_t<VsRef>>...>;
+template<typename... Vi>
+Visitor(Vi&&...) -> Visitor<std::remove_pointer_t<std::decay_t<Vi>>...>;
 
 template<typename... Vs>
 class UniqueVariant : public std::variant<Vs...>
@@ -41,24 +39,28 @@ public:
 
     static constexpr std::size_t typeCount() { return sizeof...(Vs); }
 
-	template<typename T> decltype(auto) as() { return std::get<T>(*this); }
-	template<typename T> decltype(auto) as() const { return std::get<T>(*this); }
+    template<typename T> decltype(auto) as() { return std::get<T>(self()); }
+    template<typename T> decltype(auto) as() const { return std::get<T>(self()); }
 
-	template<typename T> auto* tryAs() noexcept { return std::get_if<T>(this); }
-	template<typename T> auto* tryAs() const noexcept { return std::get_if<T>(this); }
+    template<typename T> auto* tryAs() noexcept { return std::get_if<T>(&self()); }
+    template<typename T> auto* tryAs() const noexcept { return std::get_if<T>(&self()); }
 
-	template<typename T> bool is() const noexcept { return std::holds_alternative<T>(*this); }
+    template<typename T> bool is() const noexcept { return std::holds_alternative<T>(self()); }
 
 	template<typename... Fs>
 	decltype(auto) visit(Fs&&... fs)
-	{
-		return std::visit(Visitor(std::forward<Fs>(fs)...), *this);
+    {
+        return std::visit(Visitor{std::forward<Fs>(fs)...}, self());
 	}
 	template<typename... Fs>
 	decltype(auto) visit(Fs&&... fs) const
-	{
-		return std::visit(Visitor(std::forward<Fs>(fs)...), *this);
-	}
+    {
+        return std::visit(Visitor{std::forward<Fs>(fs)...}, self());
+    }
+
+private:
+    Base& self() { return *this; }
+    const Base& self() const { return *this; }
 };
 
 template<typename Ts, typename... Vs> struct UniqueTypeTrait;

@@ -77,6 +77,9 @@ namespace IntWrapper
 
 		template<std::size_t i> using IntHasByte = IntHasBit<i * CHAR_BIT>;
 		template<std::size_t i> using UIntHasByte = UIntHasBit<i * CHAR_BIT>;
+
+		template<typename T>
+		inline constexpr std::size_t bitof = sizeof(T) * CHAR_BIT;
 	}
 
 	inline namespace PtrCast

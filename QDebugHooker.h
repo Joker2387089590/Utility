@@ -2,14 +2,18 @@
 #include <type_traits>
 #include <QDebug>
 
+namespace QDebugTest
+{
+namespace Detail
+{
+// Test T can make 'Op<T>' type
 template <typename, template<typename> typename, typename = void>
-struct Detecter : std::false_type {};
-
+struct Detector : std::false_type { using type = void; };
 template <typename T, template<typename> typename Op>
-struct Detecter<T, Op, std::void_t<Op<T>>> : std::true_type { using type = T; };
+struct Detector<T, Op, std::void_t<Op<T>>> : std::true_type { using type = T; };
 
 template<typename T, template<typename> typename... Ops>
-inline static constexpr bool detectResult = std::conjunction_v<Detecter<T, Ops>...>;
+inline static constexpr bool detectResult = std::conjunction_v<Detector<T, Ops>...>;
 
 template<typename T>
 struct QDebugTester

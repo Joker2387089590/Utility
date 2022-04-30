@@ -12,48 +12,25 @@ struct Detector : std::false_type { using type = void; };
 template <typename T, template<typename> typename Op>
 struct Detector<T, Op, std::void_t<Op<T>>> : std::true_type { using type = T; };
 
-// Base of Detector::Op, force '&QDebug::operator<<' to accept 'S' as argument type
-template<typename S>
-using F = decltype(static_cast<QDebug& (QDebug::*)(S)>(&QDebug::operator<<));
-
-// Detector::Op, decorate F to make a 'QDebug& (QDebug::*)(T const&?)' type
-struct Ops
-{
-template<typename T> using Origin   = F<T>;
-template<typename T> using Const    = F<T const>;
-template<typename T> using Ref      = F<T &>;
-template<typename T> using ConstRef = F<T const&>;
-// Any pointer except 'const char*' is to 'const void*'
-template<typename P>
-using TraitPtr = std::enable_if_t<std::is_pointer_v<P>, const void*>;
-template<typename P> using ConstPtr = F<TraitPtr<P>>;
-};
-
-// Test Ds... one-by-one
-template<typename T, template<typename> typename Op, template<typename> typename... Ops>
-struct Expander
-{
-	using D = Detector<T, Op>;
-	using type = std::conditional_t<D::value, typename D::type, typename Expander<T, Ops...>::type>;
-};
-template<typename T, template<typename> typename Op>
-struct Expander<T, Op>
-{
-	using type = typename Detector<T, Op>::type;
-};
-template<typename T, template<typename> typename... Ds>
-using typex = typename Expander<T, Ds...>::type;
-}
+template<typename T, template<typename> typename... Ops>
+inline static constexpr bool detectResult = std::conjunction_v<Detector<T, Ops>...>;
 
 template<typename T>
-struct Tester : private Detail::Ops
+struct QDebugTester
 {
-	using type = Detail::typex<std::decay_t<T>, Origin, Const, Ref, ConstRef, ConstPtr>;
-	constexpr operator bool() const { return !std::is_same_v<type, void>; }
+	template<typename S>
+	static constexpr auto f = static_cast<QDebug& (QDebug::*)(S)>(&QDebug::operator<<);
+
+	template<typename R> using Origin   = decltype(f<R>);
+	template<typename R> using Const    = decltype(f<std::add_const_t<R>>);
+	template<typename R> using Ref      = decltype(f<std::add_lvalue_reference_t<R>>);
+	template<typename R> using ConstRef = decltype(f<std::add_lvalue_reference_t<std::add_const_t<R>>>);
+
+	template<typename P> using PtrTrait = std::enable_if_t<std::is_pointer_v<P>, void>;
+	template<typename P> using ConstPtr = decltype(f<const PtrTrait<P>*>);
+
+	static constexpr bool hasOp = detectResult<T, Origin, Const, Ref, ConstRef, ConstPtr>;
 };
 
 template<typename T>
-inline constexpr bool isQDebugSupportedType = QDebugTest::Tester<T>{};
-}
-
-using QDebugTest::isQDebugSupportedType;
+inline constexpr bool isQDebugSupportedType = QDebugTester<std::decay_t<T>>::hasOp;

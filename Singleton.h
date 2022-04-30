@@ -43,8 +43,7 @@ namespace _singleton_Detail // ugly name to avoid duplicating
 
 		void* makeBuffer()
 		{
-			ptr = new char[sizeof(T)];
-			return ptr;
+			return ptr = new char[sizeof(T)];
 		}
 		void releaseBuffer()
 		{

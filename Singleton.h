@@ -18,7 +18,7 @@
 #ifndef DECLARE_SINGLETON_INS
 	// Definition of class T::ins
 	#define DECLARE_SINGLETON_INS(T) \
-		class T::ins : public ::Singleton<T> {};
+		class T::ins : public _singleton_Detail::Singleton<T> {};
 #else
 	#error re-define DECLARE_SINGLETON_INS
 #endif
@@ -26,188 +26,278 @@
 #ifndef DECLARE_DLL_SINGLETON_INS
 	// Declare that class T::ins is exported from a DLL
 	#define DECLARE_DLL_SINGLETON_INS(DLL_MARCO, T) \
-		class DLL_MARCO T::ins : public Singleton<T> {};
+		class DLL_MARCO T::ins : public _singleton_Detail::Singleton<T> {};
 #else
 	#error re-define DECLARE_DLL_SINGLETON_INS
 #endif
 
 namespace _singleton_Detail // ugly name to avoid duplicating
 {
+	template<typename T>
+	class HeapSpace
+	{
+	public:
+		HeapSpace() noexcept : ptr{nullptr} {}
+		void*& buffer() noexcept { return ptr; }
+		bool flag() const noexcept { return ptr != nullptr; }
+
+		void* makeBuffer()
+		{
+			return ptr = new char[sizeof(T)];
+		}
+		void releaseBuffer()
+		{
+			delete[] static_cast<char*>(ptr);
+			ptr = nullptr;
+		}
+		
+	private:
+		void* ptr;
+	};
+
+	template<typename T>
+	class StackSpace
+	{
+	public:
+		StackSpace() noexcept : buf{}, f{false} {}
+		void* buffer() noexcept { return static_cast<void*>(&buf); }
+		bool& flag() noexcept { return f; }
+
+	private:
+		std::aligned_storage_t<sizeof(T), alignof(T)> buf;
+		bool f;
+	};
+
+	template<typename T, typename... Args>
+	inline constexpr bool wellCtor = std::is_nothrow_constructible_v<T, Args...>;
+	template<typename T>
+	inline constexpr bool wellDtor = std::is_nothrow_destructible_v<T>;
+
 	// "steal" the constructor of T,
 	// this is a non-template class with a template member function
 	class SingletonBase
 	{
 	protected:
-		template<typename T, typename... Arg>
-		static void construct(T* ins, Arg&&... arg)
-			noexcept(std::is_nothrow_constructible_v<T, Arg...>)
+		template<typename T, typename... Args>
+		static void construct(T* ins, Args&&... args) noexcept(wellCtor<T, Args...>)
 		{
-			new(ins) T(std::forward<Arg>(arg)...);
+			new(ins) T(std::forward<Args>(args)...);
 		}
 
 		template<typename T>
-		static void deconstruct(T* ins) noexcept(std::is_nothrow_destructible_v<T>)
+		static void deconstruct(T* ins) noexcept(wellDtor<T>)
 		{
 			ins->~T();
+		}
+		
+		static auto& lock() noexcept
+		{
+			static RecursiveSpinLock mutex;
+			return mutex;
 		}
 	};
 
 	// where to locate the instance
-	enum class InstanceLocation : bool
+	enum InstanceLocation : bool { Stack = true, Heap = false };
+
+	template<typename T, InstanceLocation location>
+	class InstanceInterface : protected SingletonBase
 	{
-		Heap = false, Stack = true
+		using Base = SingletonBase;
+	protected:
+		using Base::construct;
+		using Base::deconstruct;
+		using Base::lock;
+
+	protected:
+		using Buffer = 
+			std::conditional_t<!!location, StackSpace<T>, HeapSpace<T>>;
+
+        static auto& data() noexcept
+		{
+			static Buffer dataBuf{};
+			return dataBuf;
+		}
+
+		static T* instance()
+		{
+			std::lock_guard locker{ lock() };
+			if(!exist()) throw std::exception("Take invalid singleton object!");
+			return static_cast<T*>(data().buffer());
+		}
+
+	public:
+		static bool exist() noexcept
+		{
+			std::lock_guard locker{ lock() };
+			return data().flag();
+		}
+		
+		static T* get() noexcept
+		{
+			std::lock_guard locker{ lock() };
+			return exist() ? instance() : nullptr;
+		}
+
+		// make this class like an pointer
+		operator T*()	{ return instance(); }
+		T* operator->()	{ return instance(); }
+		T& operator*()	{ return *instance(); }
 	};
-}
 
-template<typename T,
-		 _singleton_Detail::InstanceLocation location = _singleton_Detail::InstanceLocation::Heap>
-class Singleton :
-	private _singleton_Detail::SingletonBase // hide construct
-{
-	using IL = _singleton_Detail::InstanceLocation;
-	using HeapSpace = struct { char d[sizeof(T)]; };
-	using StackSpace = std::aligned_storage_t<sizeof(T), alignof(T)>;
-	using Buffer = std::conditional_t<location == IL::Stack, StackSpace, HeapSpace>;
-
-public:
-	template<typename... Arg>
-	static T* init(Arg&&...arg)
+	template<typename T>
+	class StackSingleton : public InstanceInterface<T, Stack>
 	{
-		std::lock_guard locker{ lock() };
-		if(exist()) throw std::exception("Initialize an existent object!");
+		using Base = InstanceInterface<T, Stack>;
+	protected:
+		using Base::construct;
+		using Base::deconstruct;
+		using Base::lock;
+		
+		using Base::data;
+		using Base::instance;
 
+	public:
+		using Base::exist;
+		using Base::get;
+
+	protected:
+		template<typename... Arg>
+		static T* init(Arg&&...arg)
 		try
 		{
-			// allocate at heap so it can be atomatically released.
-			if constexpr (location == IL::Heap)
-				data().makeBuffer();
-			else
-				data().flag() = true;
-
+			data().flag() = true;
 			// construct the instance at the buffer
 			construct(instance(), std::forward<Arg>(arg)...);
-
 			return instance();
 		}
 		catch(...)
 		{
-			if constexpr (location == IL::Heap)
-				data().releaseBuffer();
-			else
-				data().flag() = false;
+			data().flag() = false;
 			throw;
 		}
-	}
 
-	template<typename... Arg>
-	static T* tryInit(Arg&&... arg) noexcept
-	try			{ return init(std::forward<Arg>(arg)...); }
-	catch(...)	{ return nullptr; }
-
-	static void destroy()
-	{
-		std::lock_guard locker{ lock() };
-		if constexpr (location == IL::Stack)
+		static void destroy()
+		{
 			deconstruct(instance());
-		else
+			data().flag() = false;
+		}
+	};
+
+	template<typename T>
+	class HeapSingleton : public InstanceInterface<T, Heap>
+	{
+		using Base = InstanceInterface<T, Heap>;
+	protected:
+		using Base::construct;
+		using Base::deconstruct;
+		using Base::lock;
+		
+		using Base::data;
+		using Base::instance;
+
+	public:
+		using Base::exist;
+		using Base::get;
+
+	public:
+		static void detach() noexcept { data().buffer() = nullptr; }
+
+	protected:
+		template<typename... Args>
+		static T* init(Args&&... args)
+		{
+			// allocate at heap so it can be atomatically released.
+			data().makeBuffer();
+			try
+			{
+				construct(instance(), std::forward<Args>(args)...);
+				return instance();
+			}
+			catch(...)
+			{
+				data().releaseBuffer();
+				throw;
+			}
+		}
+
+		static void destroy()
 		{
 			auto p = instance();
 			detach();
 			deconstruct(p);
 			data().releaseBuffer();
 		}
-	}
-
-	static void detach() noexcept(location == IL::Heap)
-	{
-		if constexpr (location == IL::Stack)
-			throw std::exception("detach a object allocated on the stack!");
-		else
-			data().buffer() = nullptr;
-	}
-
-	// make this class like an pointer
-	operator T*()	{ return instance(); }
-	T* operator->()	{ return instance(); }
-	T& operator*()	{ return *instance(); }
-
-	static T* get() noexcept { return exist() ? instance() : nullptr; }
-
-	static bool exist() noexcept
-	{
-		std::lock_guard locker{ lock() };
-		return data().flag();
-	}
-
-private:
-	static T* instance()
-	{
-		std::lock_guard locker{ lock() };
-		if(!exist()) throw std::exception("Take invalid singleton object!");
-		return static_cast<T*>(data().buffer());
-	}
-
-	template<IL loc>
-	class BufferHelper;
-
-	template<>
-	class BufferHelper<IL::Stack>
-	{
-	public:
-		BufferHelper() noexcept : buf{}, f{false} {}
-		void* buffer() noexcept { return static_cast<void*>(&buf); }
-		bool& flag() noexcept { return f; }
-	private:
-		StackSpace buf;
-		bool f;
 	};
 
-	template<>
-	class BufferHelper<IL::Heap>
-	{
-	public:
-		BufferHelper() noexcept : bufferPtr{nullptr} {}
-		void*& buffer() noexcept { return bufferPtr; }
-		bool flag() noexcept { return buffer() != nullptr; }
+	template<typename T, InstanceLocation location>
+	struct LocationTrait;
+	template<typename T>
+	struct LocationTrait<T, Stack> { using Type = StackSingleton<T>; };
+	template<typename T>
+	struct LocationTrait<T, Heap> { using Type = HeapSingleton<T>; };
 
-		void makeBuffer() { buffer() = new char[sizeof(T)]; }
-		void releaseBuffer()
+	template<typename T, InstanceLocation location = Heap>
+	class Singleton : public LocationTrait<T, location>::Type
+	{
+		using Base = typename LocationTrait<T, location>::Type;
+	private:
+		using Base::construct;
+		using Base::deconstruct;
+		using Base::lock;
+
+		using Base::data;
+		using Base::instance;
+
+		using Base::init;
+		using Base::destroy;
+
+	public:
+		using Base::exist;
+		using Base::get;
+		using Base::operator *;
+		using Base::operator ->;
+		using Base::operator T*;
+
+	public:
+		template<typename... Args>
+		static T* init(Args&&... args)
 		{
-			delete[] static_cast<char*>(buffer());
-			buffer() = nullptr;
+			std::lock_guard locker{ lock() };
+			if(exist()) throw std::exception("Initialize an existent object!");
+			return Base::init(std::forward<Args>(args)...);
 		}
-	private:
-		void* bufferPtr;
+
+		template<typename... Args>
+		static T* tryInit(Args&&... args) noexcept
+		try			{ return init(std::forward<Args>(args)...); }
+		catch(...)	{ return nullptr; }
+
+		static void destroy()
+		{
+			std::lock_guard locker{ Base::lock() };
+			Base::destroy();
+		}
 	};
 
-	static auto& data() noexcept
+	template<typename T>
+	class RaiiSingleton : public T::ins
 	{
-		// template specialisation of BufferHelper
-		static BufferHelper<location> helper{};
-		return helper;
-	}
+		using Base = typename T::ins;
+	public:
+		template<typename... Args>
+		RaiiSingleton(Args&&... args)
+		{
+			static_assert(std::is_base_of_v<Singleton<T>, Base>,
+						  "T is not a Singleton!");
+			Base::init(std::forward<Args>(args)...);
+		}
+		~RaiiSingleton() { Base::destroy(); }
 
-	static auto& lock() noexcept
-	{
-		static RecursiveMutex<SpinLock> rMutex;
-		return rMutex;
-	}
-};
+		RaiiSingleton(RaiiSingleton&&) noexcept = default;
+		RaiiSingleton(const RaiiSingleton&) = delete;
+	};
+}
 
-template<typename T>
-class RaiiSingleton : public T::ins
-{
-	using Base = typename T::ins;
-public:
-	template<typename... Arg>
-	RaiiSingleton(Arg&&... arg)
-	{
-		static_assert(std::is_base_of_v<Singleton<T>, typename T::ins>,
-					  "T is not a Singleton!");
-		Base::init(std::forward<Arg>(arg)...);
-	}
-	~RaiiSingleton() { Base::destroy(); }
-
-	RaiiSingleton(RaiiSingleton&&) noexcept = default;
-	RaiiSingleton(const RaiiSingleton&) = delete;
-};
+using _singleton_Detail::Singleton;
+using _singleton_Detail::RaiiSingleton;

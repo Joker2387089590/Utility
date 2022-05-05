@@ -92,7 +92,7 @@ namespace _singleton_Detail // ugly name to avoid duplicating
 		
 		static auto& lock() noexcept
 		{
-			static RecursiveSpinLock mutex;
+			static RecursiveMutex<SpinLock> mutex;
 			return mutex;
 		}
 	};

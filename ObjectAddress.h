@@ -1,4 +1,5 @@
 #pragma once
+#include <memory>
 #include <type_traits>
 
 namespace ObjectAddress
@@ -7,13 +8,13 @@ using AnyPtr = const void*;
 using CalcPtr = const char*;
 
 template<typename C, typename T>
-auto cast(T* addr) noexcept { return static_cast<C>(static_cast<AnyPtr>(addr)); }
+auto cast(T* addr) noexcept { return std::launder(static_cast<C>(static_cast<AnyPtr>(addr))); }
 
 // 将任意指针转化为可做加减运算的指针
 template<typename T> auto calc(T* addr) noexcept { return cast<CalcPtr>(addr); };
 
 template<typename C, typename T, typename F>
-const C* impl(T* mem, F field)
+const C* impl(T* mem, F field) noexcept
 {
 	// 分配一块大小和对齐方式与 ObjectType 相同的空间，即“假对象”
 	static constexpr std::aligned_storage_t<sizeof(C), alignof(C)> fakeObj{};
@@ -34,20 +35,20 @@ const C* impl(T* mem, F field)
 
 // 重载决定返回值的 const
 template<typename T, typename C>
-[[nodiscard]] inline C* objAddr(T* mem, T C::* field) noexcept
+[[nodiscard]] inline auto objAddr(T* mem, T C::* field) noexcept -> C*
 {
 	return const_cast<C*>(impl<C>(mem, field));
 }
 
 template<typename T, typename C>
-[[nodiscard]] inline const C* objAddr(const T* mem, const T C::* field) noexcept
+[[nodiscard]] inline auto objAddr(const T* mem, const T C::* field) noexcept -> const C*
 {
 	return impl<C>(mem, field);
 }
 
 // 参数类型是 const 的，说明是 const C
 template<typename T, typename C>
-[[nodiscard]] inline const C* objAddr(const T* mem, T C::* field) noexcept
+[[nodiscard]] inline auto objAddr(const T* mem, T C::* field) noexcept -> const C*
 {
 	return impl<C>(mem, field);
 }

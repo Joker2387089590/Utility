@@ -23,7 +23,7 @@ using Seconds				 = std::chrono::duration<double>;
 inline constexpr auto oneSec = Seconds(1.);
 
 template<typename T>
-auto toSec(T t)
+inline auto toSec(T t)
 {
 	return std::chrono::duration_cast<Seconds>(t);
 }
@@ -42,28 +42,28 @@ struct IsCallable<F,
 
 template<typename F1, typename F2,
 		 std::enable_if_t<IsCallable<F1>::value && IsCallable<F2>::value, int> = 0>
-auto operator+(F1 f1, F2 f2)
+inline auto operator+(F1 f1, F2 f2)
 {
 	return [f1, f2](auto t) { return f1(t) + f2(t); };
 }
 
 template<typename F1, typename F2,
 		 std::enable_if_t<IsCallable<F1>::value && IsCallable<F2>::value, int> = 0>
-auto operator-(F1 f1, F2 f2)
+inline auto operator-(F1 f1, F2 f2)
 {
 	return [f1, f2](auto t) { return f1(t) - f2(t); };
 }
 
 template<typename F1, typename F2,
 		 std::enable_if_t<IsCallable<F1>::value && IsCallable<F2>::value, int> = 0>
-auto operator*(F1 f1, F2 f2)
+inline auto operator*(F1 f1, F2 f2)
 {
 	return [f1, f2](auto t) { return f1(t) * f2(t); };
 }
 
 template<typename F1, typename F2,
 		 std::enable_if_t<IsCallable<F1>::value && IsCallable<F2>::value, int> = 0>
-auto operator/(F1 f1, F2 f2)
+inline auto operator/(F1 f1, F2 f2)
 {
 	return [f1, f2](auto t) { return f1(t) / f2(t); };
 }
@@ -71,25 +71,25 @@ auto operator/(F1 f1, F2 f2)
 // 没有和常数的直接加减，用 constant 来调用
 
 template<typename F, std::enable_if_t<IsCallable<F>::value, int> = 0>
-auto operator*(F f, double c)
+inline auto operator*(F f, double c)
 {
 	return [f, c](auto t) { return f(t) * c; };
 }
 
 template<typename F, std::enable_if_t<IsCallable<F>::value, int> = 0>
-auto operator/(F f, double c)
+inline auto operator/(F f, double c)
 {
 	return [f, c](auto t) { return f(t) / c; };
 }
 
 template<typename F, std::enable_if_t<IsCallable<F>::value, int> = 0>
-auto operator*(double c, F f)
+inline auto operator*(double c, F f)
 {
 	return [f, c](auto t) { return c * f(t); };
 }
 
 template<typename F, std::enable_if_t<IsCallable<F>::value, int> = 0>
-auto operator/(double c, F f)
+inline auto operator/(double c, F f)
 {
 	return [f, c](auto t) { return c / f(t); };
 }
@@ -128,7 +128,7 @@ public:
 };
 
 template<typename T = Seconds>
-auto sin(double f, T phase = {})
+inline auto sin(double f, T phase = {})
 {
 	return [=](auto t) {
 		auto seconds = (toSec(t) + phase).count();
@@ -137,7 +137,7 @@ auto sin(double f, T phase = {})
 }
 
 template<typename T = Seconds>
-auto cos(double f, T phase = {})
+inline auto cos(double f, T phase = {})
 {
 	return [=](auto t) {
 		auto seconds = (toSec(t) + phase).count();
@@ -145,18 +145,18 @@ auto cos(double f, T phase = {})
 	};
 }
 
-auto constant(double value)
+inline auto constant(double value)
 {
 	return [=](auto) { return value; };
 }
 
 template<typename T = Seconds>
-auto delta(double value, T delay)
+inline auto delta(double value, T delay)
 {
 	return [=](auto t) { return t == delay ? value : 0.; };
 }
 
-auto randomNoise()
+inline auto randomNoise()
 {
 	return [](auto) {
 		static RandomNumber machine(-1., 1.);
@@ -164,7 +164,7 @@ auto randomNoise()
 	};
 }
 
-auto gaussNoise(double value, double stddev = 1.0)
+inline auto gaussNoise(double value, double stddev = 1.0)
 {
 	return [=](auto) {
 		static GaussRandom machine(value, stddev);
@@ -173,7 +173,7 @@ auto gaussNoise(double value, double stddev = 1.0)
 }
 
 template<template<typename...> typename Vec, typename G>
-auto generate(TimeRange r, double fs, G g)
+inline auto generate(TimeRange r, double fs, G g)
 {
 	const auto count = std::size_t(std::floor(r.sec() * fs));
 	const double dT	 = 1 / fs;

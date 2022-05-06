@@ -1,4 +1,5 @@
 #pragma once
+#include <memory>
 #include <type_traits>
 
 namespace ObjectAddress
@@ -13,7 +14,7 @@ auto cast(T* addr) noexcept { return std::launder(static_cast<C>(static_cast<Any
 template<typename T> auto calc(T* addr) noexcept { return cast<CalcPtr>(addr); };
 
 template<typename C, typename T, typename F>
-const C* impl(T* mem, F field)
+const C* impl(T* mem, F field) noexcept
 {
 	// 分配一块大小和对齐方式与 ObjectType 相同的空间，即“假对象”
 	static constexpr std::aligned_storage_t<sizeof(C), alignof(C)> fakeObj{};

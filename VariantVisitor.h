@@ -92,6 +92,5 @@ template<typename... Ts> using Variant = typename TakeOneTrait<Ts...>::type;
 
 namespace Variants
 {
-	using Detail::UniqueVariant;
-	using Detail::Variant;
+using Detail::Visitor, Detail::UniqueVariant, Detail::Variant;
 }

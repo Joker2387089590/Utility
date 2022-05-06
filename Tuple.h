@@ -2,7 +2,14 @@
 #include <functional> // std::ref
 #include <tuple>
 
+namespace Tuples::Detail
+{
+// forward declaration
+template<typename... Ts> class Tuple;
+template<typename... Ts> constexpr auto makeTuple(Ts&&... ts);
+
 /// At
+
 template<std::size_t i, typename... Ts> struct AtHelper;
 
 template<std::size_t i, typename T, typename... Ts>
@@ -14,6 +21,7 @@ struct AtHelper<0, T, Ts...> { using type = T; };
 template<std::size_t i> struct AtHelper<i> {};
 
 /// Array to Tuple
+
 template<typename... Ts> struct TList {};
 
 template<template<typename...> typename Tu, std::size_t i, typename T, typename Ts>
@@ -22,26 +30,32 @@ struct ArrayToTupleTrait;
 template<template<typename...> typename Tu, std::size_t i, typename T, typename... Ts>
 struct ArrayToTupleTrait<Tu, i, T, TList<Ts...>>
 {
-	using type = typename ArrayToTupleTrait<Tu, i - 1, T, TList<Ts..., T>>::type;
+    using type = typename ArrayToTupleTrait<Tu, i - 1, T, TList<Ts..., T>>::type;
 };
 
 template<template<typename...> typename Tu, typename T, typename... Ts>
 struct ArrayToTupleTrait<Tu, 0, T, TList<Ts...>>
 {
-	using type = Tu<Ts...>;
+    using type = Tu<Ts...>;
 };
 
 template<template<typename...> typename Tu, typename T, std::size_t N>
 using ArrayToTuple = typename ArrayToTupleTrait<Tu, N, T, TList<>>::type;
 
 /// TypeList
+
+/// Container of one type of the Tuple,
+/// the non-type template argument(std::size_t) is used for distincting duplicate types.
 template<std::size_t i, typename T>
 struct IndexedType
 {
-	using type = T;
-	template<typename U> constexpr IndexedType(U&& d) : data(std::forward<U>(d)) {}
-	constexpr IndexedType() : data() {}
-	T data;
+    using type = T;
+
+    template<typename U>
+    explicit constexpr IndexedType(U&& d) noexcept(noexcept(T(std::forward<U>(d)))) :
+        data(std::forward<U>(d)) {}
+
+    T data;
 };
 
 template<typename... Ts>
@@ -51,185 +65,198 @@ template<typename... Ts>
 template<std::size_t... is>
 class TypeList<Ts...>::SizeList : private IndexedType<is, Ts>...
 {
-public:
-	template<std::size_t i> using At = typename AtHelper<i, Ts...>::type;
-private:
-	template<std::size_t i> using Base = IndexedType<i, At<i>>;
-
-public:
-	SizeList() : Base<is>()... {}
-	template<typename... Args> SizeList(Args&&... args) : Base<is>(args)... {}
-
-	SizeList(SizeList&&) = default;
-	SizeList& operator=(SizeList&&) = default;
-	SizeList(const SizeList&) = default;
-	SizeList& operator=(const SizeList&) = default;
-	~SizeList() = default;
-
-public:
-	template<typename T>
-	static constexpr std::size_t indexOfFirst()
-	{
-		std::size_t i = 0;
-		auto test = [&](bool b) { if(!b) ++i; return b; };
-		(test(std::is_same_v<At<is>, T>) || ...);
-		return i;
-	}
-
-	template<std::size_t i>
-	constexpr const auto& get() const { return self<i>()->data; }
-
-	template<typename T>
-	constexpr const auto& get() const { return get<indexOfFirst<T>()>(); }
-
-	template<std::size_t i>
-	constexpr auto& get() { return self<i>()->data; }
-
-	template<typename T>
-	constexpr auto& get() { return get<indexOfFirst<T>()>(); }
-
-	static constexpr std::size_t size() { return sizeof...(Ts); }
+protected:
+    template<std::size_t i> using At = typename AtHelper<i, Ts...>::type;
+    template<std::size_t i> using Base = IndexedType<i, At<i>>;
 
 protected:
-	template<std::size_t i> Base<i>* self() { return this; }
-	template<std::size_t i> const Base<i>* self() const { return this; }
+    template<std::size_t i, typename... Args>
+    constexpr SizeList(std::in_place_index_t<i>, Args&&... args)
+        noexcept(noexcept(SizeList(std::in_place_index<i - 1>,
+                                   std::forward<Args>(args)..., At<sizeof...(Ts) - i>{}))) :
+        SizeList(std::in_place_index<i - 1>,
+                 std::forward<Args>(args)..., At<sizeof...(Ts) - i>{})
+    {}
 
-	template<typename F>
-	auto forEach(F f) const { return forEachHelper(f, self<is>()...); }
-	template<typename F>
-	auto forEach(F f) { return forEachHelper(f, self<is>()...); }
+    template<typename... Args>
+    constexpr SizeList(std::in_place_index_t<0>, Args&&... args)
+        noexcept((noexcept(Base<is>(std::forward<Args>(args))) && ...)) :
+        Base<is>(std::forward<Args>(args))...
+    {}
 
-	template<typename C>
-	auto filter(C c) { return filterHelper(filterResult, c, self<is>()...); }
-	template<typename C>
-	auto filter(C c) const { return filterHelper(filterResult, c, self<is>()...); }
+public:
+    template<typename... Args>
+    constexpr SizeList(Args&&... args)
+        noexcept(noexcept(SizeList(std::in_place_index<sizeof...(Ts) - sizeof...(Args)>,
+                                   std::forward<Args>(args)...))) :
+        SizeList(std::in_place_index<sizeof...(Ts) - sizeof...(Args)>,
+                 std::forward<Args>(args)...)
+    {}
 
-private:
-	template<typename F, typename T, typename... Ti>
-	auto forEachHelper(F f, T* t, Ti*... ts) const
-	{
-		return forEachHelper([f, t](auto... ends) { return f(t, ends...); }, ts...);
-	}
-	template<typename F>
-	auto forEachHelper(F f) const { return f(); }
+    constexpr SizeList(SizeList&&) = default;
+    constexpr SizeList& operator=(SizeList&&) = default;
+    constexpr SizeList(const SizeList&) = default;
+    constexpr SizeList& operator=(const SizeList&) = default;
+    ~SizeList() = default;
 
-	template<typename F, typename T, typename... Ti>
-	auto forEachHelper(F f, T* t, Ti*... ts)
-	{
-		return forEachHelper([f, t](auto... ends) { return f(t, ends...); }, ts...);
-	}
-	template<typename F>
-	auto forEachHelper(F f) { return f(); }
+public: // container basic functions
+    template<typename T>
+    static constexpr std::size_t indexOfFirst()
+    {
+        std::size_t i = 0;
+        auto test = [&](bool b) { if(!b) ++i; return b; };
+        (test(std::is_same_v<At<is>, T>) || ...);
+        return i;
+    }
 
-private:
-	inline static constexpr auto filterResult = [](auto... good) {
-		return [good...](auto&& p) { return p(good...); };
-	};
+    template<std::size_t i>
+    constexpr const auto& get() const { return self<i>()->data; }
 
-	template<typename F, typename C, typename T, typename... Ti>
-	auto filterHelper(F f, C c, T* t, Ti*... ts)
-	{
-		using Condition = decltype(c(t));
-		if constexpr (Condition::value)
-			return filterHelper([f, t](auto... ends) { return f(t, ends...); }, c, ts...);
-		else
-			return filterHelper(f, c, ts...);
-	}
+    template<typename T>
+    constexpr const auto& get() const { return get<indexOfFirst<T>()>(); }
 
-	template<typename F, typename C>
-	auto filterHelper(F f, C) { return f(); }
+    template<std::size_t i>
+    constexpr auto& get() { return self<i>()->data; }
 
-	template<typename F, typename C, typename T, typename... Ti>
-	auto filterHelper(F f, C c, T* t, Ti*... ts) const
-	{
-		using Condition = decltype(c(t));
-		if constexpr (Condition::value)
-			return filterHelper([f, t](auto... ends) { return f(t, ends...); }, c, ts...);
-		else
-			return filterHelper(f, c, ts...);
-	}
+    template<typename T>
+    constexpr auto& get() { return get<indexOfFirst<T>()>(); }
 
-	template<typename F, typename C>
-	auto filterHelper(F f, C) const { return f(); }
+    static constexpr std::size_t size() { return sizeof...(Ts); }
+
+protected:
+    template<std::size_t i> constexpr Base<i>* self() { return this; }
+    template<std::size_t i> constexpr const Base<i>* self() const { return this; }
+
+protected: // interface for sub class
+    template<typename F>
+    constexpr auto forEach(F f) const { return forEachHelper(f, self<is>()...); }
+    template<typename F>
+    constexpr auto forEach(F f) { return forEachHelper(f, self<is>()...); }
+
+    template<typename C>
+    constexpr auto filter(C c) { return filterHelper(filterResult, c, self<is>()...); }
+    template<typename C>
+    constexpr auto filter(C c) const { return filterHelper(filterResult, c, self<is>()...); }
+
+private: // forEach impl
+    template<typename F, typename T, typename... Ti>
+    constexpr auto forEachHelper(F f, T* t, Ti*... ts) const
+    {
+        return forEachHelper([f, t](auto... ends) constexpr { return f(t, ends...); }, ts...);
+    }
+    template<typename F>
+    constexpr auto forEachHelper(F f) const { return f(); }
+
+    template<typename F, typename T, typename... Ti>
+    constexpr auto forEachHelper(F f, T* t, Ti*... ts)
+    {
+        return forEachHelper([f, t](auto... ends) constexpr { return f(t, ends...); }, ts...);
+    }
+    template<typename F>
+    constexpr auto forEachHelper(F f) { return f(); }
+
+private: // filter impl
+    inline static constexpr auto filterResult = [](auto... good) constexpr
+    {
+        return [good...](auto&& p) constexpr { return p(good...); };
+    };
+
+    template<typename F, typename C, typename T, typename... Ti>
+    constexpr auto filterHelper(F f, C c, T* t, Ti*... ts)
+    {
+        using Condition = decltype(c(t));
+        if constexpr (Condition::value)
+            return filterHelper([f, t](auto... ends) constexpr { return f(t, ends...); }, c, ts...);
+        else
+            return filterHelper(f, c, ts...);
+    }
+    template<typename F, typename C>
+    constexpr auto filterHelper(F f, C) { return f(); }
+
+    template<typename F, typename C, typename T, typename... Ti>
+    constexpr auto filterHelper(F f, C c, T* t, Ti*... ts) const
+    {
+        using Condition = decltype(c(t));
+        if constexpr (Condition::value)
+            return filterHelper([f, t](auto... ends) constexpr { return f(t, ends...); }, c, ts...);
+        else
+            return filterHelper(f, c, ts...);
+    }
+    template<typename F, typename C>
+    constexpr auto filterHelper(F f, C) const { return f(); }
 };
 
 template<typename... Ts, std::size_t... i>
 auto reduceTypeSize(std::index_sequence<i...>) ->
-	typename TypeList<Ts...>::template SizeList<i...>;
-
+    typename TypeList<Ts...>::template SizeList<i...>;
 template<typename... Ts>
 using ReduceTypeSize =
-	decltype(reduceTypeSize<Ts...>(std::make_index_sequence<sizeof...(Ts)>{}));
+    decltype(reduceTypeSize<Ts...>(std::make_index_sequence<sizeof...(Ts)>{}));
 
-template<typename... Ts> auto makeTuple(Ts&&... ts);
 
 template<typename... Ts>
-class Tuple : public ReduceTypeSize<Ts...>
+class Tuple : private ReduceTypeSize<Ts...>
 {
-	using Base = ReduceTypeSize<Ts...>;
+    using Base = ReduceTypeSize<Ts...>;
+    template<typename... To> friend class Tuple;
 public:
-	template<typename... Args>
-	constexpr Tuple(Args&&... args) : Base(std::forward<Args>(args)...) {}
+    using Base::Base;
 
-	constexpr Tuple() : Base() {}
+    template<typename... Args>
+    constexpr Tuple(Args&&... args) : Base(std::forward<Args>(args)...) {}
 
-	// TODO: Tuple(std::tuple<...>)
-	// TODO: Tuple(std::pair<...>)
+    constexpr Tuple() : Base() {}
 
-	template<typename T, std::size_t N>
-	Tuple(std::array<T, N>)
-	{
+    // TODO: Tuple(std::tuple<...>), Tuple(std::array<T, N>), Tuple(std::pair<...>)
 
-	}
+public:
+    using Base::At;
+    using Base::get;
+    using Base::indexOfFirst;
+    using Base::size;
 
-	using Base::At;
-	using Base::get;
-	using Base::indexOfFirst;
-	using Base::size;
+    template<typename... Us>
+    constexpr Tuple<Ts..., Us...> append(const Tuple<Us...>& other) const
+    {
+        auto vThis = [](auto*... ts) {
+            return [ts...](auto*... us) {
+                return Tuple<Ts..., Us...>(ts->data..., us->data...);
+            };
+        };
+        auto tThis = this->forEach(vThis);
+        auto vOther = [&tThis](auto*... us) { return tThis(us...); };
+        return other.forEach(vOther);
+    }
 
-	template<typename> using True = std::true_type;
+    /// Remove each type of Ts... that is included by T...
+    template<typename... T>
+    constexpr auto remove() const
+    {
+        auto c = [](auto* t) {
+            using Ti = typename std::decay_t<decltype(*t)>::type;
+            constexpr bool isOneOf = std::disjunction_v<std::is_same<Ti, T>...>;
+            return std::bool_constant<!isOneOf>{};
+        };
+        auto f = [](auto*... good) {
+            return Tuple<typename std::decay_t<decltype(*good)>::type...>(good->data...);
+        };
+        return Base::filter(c)(f);
+    }
 
-	template<typename... Us>
-	Tuple<Ts..., Us...> append(const Tuple<Us...>& other) const
-	{
-		auto vThis = [](auto*... ts) {
-			return [ts...](auto*... us) {
-				return Tuple<Ts..., Us...>(ts->data..., us->data...);
-			};
-		};
-		auto tThis = this->forEach(vThis);
-		auto vOther = [&tThis](auto*... us) { return tThis(us...); };
-		return other.forEach(vOther);
-	}
+    template<typename F>
+    constexpr auto map(F f)
+    {
+        return Base::forEach([f](auto*... ts) constexpr { return makeTuple(f(ts->data)...); });
+    }
 
-	template<typename... T>
-	auto remove() const
-	{
-		auto c = [](auto* t) {
-			using Ti = typename std::decay_t<decltype(*t)>::type;
-			constexpr bool isOneOf = std::disjunction_v<std::is_same<T, Ti>...>;
-			return std::bool_constant<!isOneOf>{};
-		};
-		auto f = [](auto*... good) {
-			return Tuple<typename std::decay_t<decltype(*good)>::type...>(good->data...);
-		};
-		return Base::filter(c)(f);
-	}
+    template<typename F>
+    constexpr auto map(F f) const
+    {
+        return Base::forEach([f](auto*... ts) constexpr { return makeTuple(f(ts->data)...); });
+    }
 
-	template<typename F>
-	auto map(F f)
-	{
-		return Base::forEach([f](auto*... ts) { return makeTuple(f(ts->data)...); });
-	}
-
-	template<typename F>
-	auto map(F f) const
-	{
-		return Base::forEach([f](auto*... ts) { return makeTuple(f(ts->data)...); });
-	}
-
-	auto tie() noexcept { return this->map([](auto& data) { return std::ref(data); }); }
-	auto tie() const noexcept { return this->map([](auto& data) { return std::cref(data); }); }
+    constexpr auto tie() noexcept { return this->map([](auto& data) { return std::ref(data); }); }
+    constexpr auto tie() const noexcept { return this->map([](auto& data) { return std::cref(data); }); }
 };
 
 // TODO: std
@@ -243,4 +270,10 @@ template <typename T>
 using UnwrapDecay = typename UnwrapRef<typename std::decay<T>::type>::type;
 
 template<typename... Ts>
-auto makeTuple(Ts&&... ts) { return Tuple<UnwrapDecay<Ts>...>(std::forward<Ts>(ts)...); }
+constexpr auto makeTuple(Ts&&... ts) { return Tuple<UnwrapDecay<Ts>...>(std::forward<Ts>(ts)...); }
+}
+
+namespace Tuples
+{
+using Detail::Tuple, Detail::makeTuple;
+}

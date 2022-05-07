@@ -1,6 +1,8 @@
 #pragma once
+#include <utility>    // index_sequence
 #include <functional> // std::ref
 #include <tuple>
+#include <type_traits>
 
 namespace Tuples::Detail
 {
@@ -133,10 +135,27 @@ protected: // interface for sub class
     template<typename F>
     constexpr auto forEach(F f) { return forEachHelper(f, self<is>()...); }
 
+    template<typename F>
+    constexpr auto reverseForEach(F f) const { return forEachHelper(f, self<is>()...); }
+    template<typename F>
+    constexpr auto reverseForEach(F f) { return forEachHelper(f, self<is>()...); }
+
     template<typename C>
     constexpr auto filter(C c) { return filterHelper(filterResult, c, self<is>()...); }
     template<typename C>
     constexpr auto filter(C c) const { return filterHelper(filterResult, c, self<is>()...); }
+
+    
+    template<typename F, std::size_t s, std::enable_if_t<s <= size(), int> = 0>
+    constexpr auto take(F f) const 
+    {
+        if constexpr (s == 0)
+            return f();
+        else if constexpr (s == size())
+            return forEach(f);
+        else
+            return takeHelper(std::make_index_sequence<s>{});
+    }
 
 private: // forEach impl
     template<typename F, typename T, typename... Ti>
@@ -154,6 +173,22 @@ private: // forEach impl
     }
     template<typename F>
     constexpr auto forEachHelper(F f) { return f(); }
+
+    template<typename F, typename T, typename... Ti>
+    constexpr auto reverseForEachHelper(F f, T* t, Ti*... ts) const
+    {
+        return reverseForEachHelper([f, t](auto... ends) constexpr { return f(ends..., t); }, ts...);
+    }
+    template<typename F>
+    constexpr auto reverseForEachHelper(F f) const { return f(); }
+
+    template<typename F, typename T, typename... Ti>
+    constexpr auto reverseForEachHelper(F f, T* t, Ti*... ts)
+    {
+        return reverseForEachHelper([f, t](auto... ends) constexpr { return f(ends..., t); }, ts...);
+    }
+    template<typename F>
+    constexpr auto reverseForEachHelper(F f) { return f(); }
 
 private: // filter impl
     inline static constexpr auto filterResult = [](auto... good) constexpr
@@ -184,6 +219,10 @@ private: // filter impl
     }
     template<typename F, typename C>
     constexpr auto filterHelper(F f, C) const { return f(); }
+
+private: // take impl
+    template<typename F, std::size_t... i>
+    constexpr auto takeHelper(F f, std::index_sequence<i...>) { return f(self<i>()->data...); }
 };
 
 template<typename... Ts, std::size_t... i>
@@ -210,10 +249,10 @@ public:
     // TODO: Tuple(std::tuple<...>), Tuple(std::array<T, N>), Tuple(std::pair<...>)
 
 public:
-    using Base::At;
-    using Base::get;
-    using Base::indexOfFirst;
-    using Base::size;
+    using Base::At;             ///< using T = decltype(tuple)::At<i>;
+    using Base::get;            ///< auto& elem = tuple.get<i>();
+    using Base::indexOfFirst;   ///< constexpr std::size_t i = tuple.indexOfFirst<T>();
+    using Base::size;           ///< constexpr std::size_t s = tuple.size();
 
     template<typename... Us>
     constexpr Tuple<Ts..., Us...> append(const Tuple<Us...>& other) const
@@ -253,6 +292,18 @@ public:
     constexpr auto map(F f) const
     {
         return Base::forEach([f](auto*... ts) constexpr { return makeTuple(f(ts->data)...); });
+    }
+
+    template<typename F>
+    constexpr auto reverseMap(F f)
+    {
+        return Base::reverseForEach([f](auto*... ts) constexpr { return makeTuple(f(ts->data)...); });
+    }
+
+    template<typename F>
+    constexpr auto reverseMap(F f) const
+    {
+        return Base::reverseForEach([f](auto*... ts) constexpr { return makeTuple(f(ts->data)...); });
     }
 
     constexpr auto tie() noexcept { return this->map([](auto& data) { return std::ref(data); }); }

@@ -3,6 +3,19 @@
 #include <stack>
 #include <functional>
 
+template<typename F>
+struct Cleanup
+{
+    template<typename Fi>
+    Cleanup(Fi&& f) : f(std::forward<Fi>(f)), doClean(true) {}
+    ~Cleanup() { if(doClean) f(); }
+
+    F f;
+    bool doClean;
+};
+
+template<typename F> Cleanup(F&&) -> Cleanup<std::decay_t<F>>;
+
 // RollbackHandle 的辅助类
 class RollBackHelper
 {

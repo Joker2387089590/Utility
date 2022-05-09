@@ -20,17 +20,18 @@ namespace Randoms
 	private:
 		std::default_random_engine generator;
 		D distribution;
-	};
+    };
 
-	template<typename T>
-	using UniformDistribution
-		= std::conditional_t<std::is_integral_v<T>,
-							 std::uniform_int_distribution<T>,
-							 std::conditional_t<std::is_floating_point_v<T>,
-												std::uniform_real_distribution<T>,
-												void>>;
+    template <typename T>
+    using UniformDistribution = std::conditional_t<
+        std::is_integral_v<T>,
+        std::uniform_int_distribution<T>,
+        std::conditional_t<
+            std::is_floating_point_v<T>,
+            std::uniform_real_distribution<T>,
+            void>>;
 
-	/// 随机数生成器
+        /// 随机数生成器
 	/// Usage:
 	/// static RandomNumber randomMachine(0.0, 1.0); // 设为静态或全局变量
 	/// double r1 = randomMachine;

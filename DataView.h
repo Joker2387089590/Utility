@@ -3,7 +3,7 @@
 #include <vector>
 #include <array>
 
-namespace DataViews
+namespace DataViews::Detail
 {
 template<typename T>
 class FatPtr
@@ -157,6 +157,7 @@ using CRawView = DataView<const void>;
 using RawView = DataView<void>;
 }
 
-using DataViews::DataView;
-using DataViews::RawView;
-using DataViews::CRawView;
+namespace DataViews
+{
+using Detail::DataView, Detail::RawView, Detail::CRawView;
+}

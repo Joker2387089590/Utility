@@ -165,6 +165,12 @@ private:
 
 public:
     LinkMap() : m(), h{} {};
+    LinkMap(std::initializer_list<std::pair<K, V>> values) :
+        LinkMap()
+    {
+        for(auto&& [key, value] : values)
+            emplace(std::move(key), std::move(value));
+    }
 
 public:
     template<typename Key, typename... Vs> V& insert(Key&& k, Vs&&... vs);  // init
@@ -242,6 +248,8 @@ V& LinkMap<K, V>::at(Key&& k)
     return pos->second.value();
 }
 
+#if 0
+
 using Real = double;
 struct Imag;
 struct Complex;
@@ -255,7 +263,7 @@ struct Imag
     constexpr Imag(Imag&&) noexcept = default;
     constexpr Imag& operator=(const Imag&) noexcept = default;
     constexpr Imag& operator=(Imag&&) noexcept = default;
-    constexpr ~Imag() noexcept = default;
+    ~Imag() noexcept = default;
 
     constexpr operator Complex() const noexcept;
     constexpr const double& operator()() const noexcept { return value; }
@@ -275,7 +283,7 @@ struct Complex
     constexpr Complex(Complex&&) noexcept = default;
     constexpr Complex& operator=(const Complex&) noexcept = default;
     constexpr Complex& operator=(Complex&&) noexcept = default;
-    constexpr ~Complex() noexcept = default;
+    ~Complex() noexcept = default;
 
     constexpr Complex operator-() const noexcept { return {-real, -imag}; }
     constexpr Complex operator~() const noexcept { return {real, -imag}; }
@@ -294,7 +302,7 @@ struct PolarComplex
     constexpr PolarComplex(PolarComplex&&) noexcept = default;
     constexpr PolarComplex& operator=(const PolarComplex&) noexcept = default;
     constexpr PolarComplex& operator=(PolarComplex&&) noexcept = default;
-    constexpr ~PolarComplex() noexcept = default;
+    ~PolarComplex() noexcept = default;
 
     constexpr operator Complex() const noexcept { return {r * std::cos(theta), r * std::sin(theta)}; }
 
@@ -369,3 +377,5 @@ inline constexpr Complex& operator/=(Complex& c, Complex o) noexcept { return c 
 
 template<typename I, std::enable_if_t<std::is_integral_v<I> && !std::is_same_v<I,bool>, int> = 0>
 inline constexpr Complex operator,(I r, Imag i) noexcept { return {double(r), i}; }
+
+#endif

@@ -22,6 +22,13 @@ public:
 	type* begin() noexcept { return data; }
 	type* end() noexcept { return data + size; }
 
+    template<typename U>
+    bool contains(U&& v) const noexcept
+    {
+        for(auto& i : *this) if(i == v) return true;
+        return false;
+    }
+
 public:
 	type* data;
 	std::size_t size;
@@ -54,6 +61,9 @@ class Const : public Mut<T>
 public:
 	using typename Base::type;
 	using Base::Base;
+
+    constexpr Const(std::initializer_list<T> list) :
+        Base(list.begin(), list.size()) {}
 
 	template<std::size_t N>
 	constexpr Const(CT (&arr)[N]) noexcept : Base(arr, N) {}

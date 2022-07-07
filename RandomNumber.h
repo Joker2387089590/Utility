@@ -8,12 +8,14 @@ namespace Randoms
 	{
 	public:
 		using type = typename D::result_type;
+		using result_type = type;
 
 		template<typename... Args>
 		Generator(Args&&... args) :
 			generator(std::random_device{}()),
 			distribution(std::forward<Args>(args)...)
 		{}
+
 		operator type() { return distribution(generator); }
 		type operator()() { return distribution(generator); }
 
@@ -43,6 +45,7 @@ namespace Randoms
 		using Base = Generator<UniformDistribution<T>>;
 	public:
 		using type = typename Base::type;
+
 		using Base::operator();
 		using Base::operator type;
 

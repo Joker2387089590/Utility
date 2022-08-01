@@ -33,8 +33,8 @@ namespace Randoms
             std::uniform_real_distribution<T>,
             void>>;
 
-        /// 随机数生成器
-	/// Usage:
+    /// 随机数生成器
+    /// Usage:
 	/// static RandomNumber randomMachine(0.0, 1.0); // 设为静态或全局变量
 	/// double r1 = randomMachine;
 	/// double r2 = randomMachine();

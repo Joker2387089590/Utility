@@ -1,7 +1,10 @@
 #pragma once
-#include <QString>
 #include <fmt/format.h>
 #include <fmt/color.h>
+
+#ifndef EASY_FMT_NO_QT
+#include <QString>
+#endif
 
 inline auto operator""_fmt(const char* str, std::size_t size)
 {
@@ -23,6 +26,8 @@ inline auto operator""_err(const char* str, std::size_t size)
 		return fmt::print(stderr, fg(fmt::color::crimson), f, std::forward<decltype(args)>(args)...);
 	};
 }
+
+#ifndef EASY_FMT_NO_QT
 
 using U16Formatter = fmt::formatter<std::u16string_view, char16_t>;
 using CFormatter = fmt::formatter<std::string_view, char>;
@@ -65,3 +70,5 @@ struct fmt::formatter<QString, wchar_t> : WFormatter
 		return WFormatter::format(s.toStdWString(), context);
 	}
 };
+
+#endif

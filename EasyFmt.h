@@ -8,8 +8,11 @@
 
 inline auto operator""_fmt(const char* str, std::size_t size)
 {
-	return [f = std::string_view(str, size)](auto&&... args) {
-		return fmt::format(f, std::forward<decltype(args)>(args)...);
+    return [f = std::string_view(str, size)](auto&&... args) constexpr {
+        if constexpr (sizeof...(args) == 0)
+            return f;
+        else
+            return fmt::vformat(f, fmt::make_args_checked<decltype(args)...>(f, args...));
 	};
 }
 

@@ -12,7 +12,7 @@ inline auto operator""_fmt(const char* str, std::size_t size)
         if constexpr (sizeof...(args) == 0)
             return f;
         else
-            return fmt::vformat(f, fmt::make_args_checked<decltype(args)...>(f, args...));
+			return fmt::vformat(f, fmt::make_format_args(args...));
 	};
 }
 

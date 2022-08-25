@@ -2,8 +2,10 @@
 #include <fmt/format.h>
 #include <fmt/color.h>
 
-#ifndef EASY_FMT_NO_QT
+#if !defined(EASY_FMT_NO_QT) &&  __has_include(<QString>)
 #include <QString>
+#else
+#define EASY_FMT_NO_QT
 #endif
 
 inline auto operator""_fmt(const char* str, std::size_t size)

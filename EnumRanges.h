@@ -1,25 +1,38 @@
 #pragma once
 #include <type_traits>
 
-#define DeclEnum(EnumName, ...) \
- 	enum EnumName { Begin = -1, __VA_ARGS__, End, Size = End }
+namespace Enums::Detail
+{
+#define DeclEnum(EnumName, ...) enum EnumName { __VA_ARGS__, End, Size = End }
 
 template<typename T, std::enable_if_t<std::is_enum_v<T>, int> = 0>
-struct EnumRanges
+struct Iterator
 {
 	using ValueType = std::underlying_type_t<T>;
-	struct Pointer
-	{
-		ValueType value;
-		constexpr T operator*() const { return static_cast<T>(value); }
-		constexpr Pointer& operator++() { ++value; }
-		constexpr bool operator==(const Pointer& other) const { return value == other.value; }
-		constexpr bool operator!=(const Pointer& other) const { return !(*this == other); }
-	};
-
-	constexpr Pointer begin() const { return {int(T::Begin) + 1}; }
-	constexpr Pointer end() const { return {int(T::End)}; }
+	constexpr T operator*() const { return static_cast<T>(value); }
+	constexpr Iterator& operator++() { ++value; return *this; }
+	constexpr bool operator==(const Iterator& other) const { return value == other.value; }
+	constexpr bool operator!=(const Iterator& other) const { return !(*this == other); }
+	ValueType value;
 };
 
-template<typename E>
+template<typename T>
+struct [[deprecated("use MakeEnum instead")]] EnumRanges
+{
+	using Iterator = Detail::Iterator<T>;
+	using ValueType = typename Iterator::ValueType;
+	constexpr Iterator begin() const noexcept { return { ValueType(0) }; }
+	constexpr Iterator end() const noexcept { return { ValueType(T::End) }; }
+};
+
+template<typename E> [[deprecated("use MakeEnum instead")]]
 inline constexpr auto enumRanges = EnumRanges<E>{};
+
+#define MakeEnum(EnumName, ...) \
+enum EnumName { __VA_ARGS__, End, Size = End }; \
+inline constexpr auto begin(EnumName) noexcept { return Enums::Detail::Iterator<EnumName>{0}; } \
+inline constexpr auto end(EnumName) noexcept { return Enums::Detail::Iterator<EnumName>{EnumName::End}; } \
+
+}
+
+using Enums::Detail::enumRanges;

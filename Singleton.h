@@ -1,6 +1,6 @@
 #pragma once
 #include <type_traits>
-#include <exception>
+#include <stdexcept>
 #include <mutex>
 #include <SpinLock.h>
 
@@ -122,7 +122,7 @@ namespace _singleton_Detail // ugly name to avoid duplicating
 		static T* instance()
 		{
 			std::lock_guard locker{ lock() };
-			if(!exist()) throw std::exception("Take invalid singleton object!");
+			if(!exist()) throw std::runtime_error("Take invalid singleton object!");
 			return static_cast<T*>(data().buffer());
 		}
 
@@ -264,7 +264,7 @@ namespace _singleton_Detail // ugly name to avoid duplicating
 		static T* init(Args&&... args)
 		{
 			std::lock_guard locker{ lock() };
-			if(exist()) throw std::exception("Initialize an existent object!");
+			if(exist()) throw std::runtime_error("Initialize an existent object!");
 			return Base::init(std::forward<Args>(args)...);
 		}
 

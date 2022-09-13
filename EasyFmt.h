@@ -21,14 +21,16 @@ inline auto operator""_fmt(const char* str, std::size_t size)
 inline auto operator""_print(const char* str, std::size_t size)
 {
 	return [f = std::string_view(str, size)](auto&&... args) {
-		return fmt::print(fg(fmt::color::aqua), f, std::forward<decltype(args)>(args)...);
+		fmt::print(fg(fmt::color::aqua), f, std::forward<decltype(args)>(args)...);
+		fmt::print("\n");
 	};
 }
 
 inline auto operator""_err(const char* str, std::size_t size)
 {
 	return [f = std::string_view(str, size)](auto&&... args) {
-		return fmt::print(stderr, fg(fmt::color::crimson), f, std::forward<decltype(args)>(args)...);
+		fmt::print(stderr, fg(fmt::color::crimson), f, std::forward<decltype(args)>(args)...);
+		fmt::print(stderr, "\n");
 	};
 }
 
@@ -73,6 +75,18 @@ struct fmt::formatter<QString, wchar_t> : WFormatter
 	auto format(const QString& s, FormatContext& context)
 	{
 		return WFormatter::format(s.toStdWString(), context);
+	}
+};
+
+template<>
+struct fmt::formatter<QByteArray, char> : CFormatter
+{
+	using CFormatter::parse;
+	template <typename FormatContext>
+	auto format(const QByteArray& s, FormatContext& context)
+	{
+		auto view = std::string_view(s.data(), s.size());
+		return CFormatter::format(view, context);
 	}
 };
 

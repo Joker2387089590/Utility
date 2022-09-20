@@ -13,10 +13,6 @@
 	T& operator=(T&&) & = default;       \
 	~T() = default;                      \
 
-
-#define GetDataForceType(d, Tc) \
-	constexpr auto data() Tc noexcept -> T Tc { return static_cast<T Tc>(d); }
-
 namespace Tuples::Detail
 {
 using namespace Types;
@@ -384,4 +380,3 @@ using Detail::Tuple, Detail::makeTuple, Detail::isTuple;
 
 #undef fwd
 #undef DefaultClass
-#undef GetDataForceType

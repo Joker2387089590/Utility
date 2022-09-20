@@ -29,9 +29,9 @@ template<typename E> [[deprecated("use MakeEnum instead")]]
 inline constexpr auto enumRanges = EnumRanges<E>{};
 
 #define MakeEnum(EnumName, ...) \
-enum EnumName { __VA_ARGS__, End, Size = End }; \
+enum class EnumName { __VA_ARGS__, End, Size = End }; \
 inline constexpr auto begin(EnumName) noexcept { return Enums::Detail::Iterator<EnumName>{0}; } \
-inline constexpr auto end(EnumName) noexcept { return Enums::Detail::Iterator<EnumName>{EnumName::End}; } \
+inline constexpr auto end(EnumName) noexcept { return Enums::Detail::Iterator<EnumName>{int(EnumName::End)}; } \
 
 }
 

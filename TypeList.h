@@ -65,10 +65,47 @@ struct AtTrait<i, T, Ts...> { using type = typename AtTrait<i - 1, Ts...>::type;
 template<typename T, typename... Ts>
 struct AtTrait<0, T, Ts...> { using type = T; };
 
+/// repeat
+template<std::size_t i, typename Ts, typename Ti> struct RepeatTrait;
+
+template<std::size_t i, typename... Ts, typename... Ti>
+struct RepeatTrait<i, TList<Ts...>, TList<Ti...>>
+{
+	using type = typename RepeatTrait<i - 1, TList<Ts..., Ti...>, TList<Ti...>>::type;
+};
+
+template<typename... Ts, typename... Ti>
+struct RepeatTrait<0, TList<Ts...>, TList<Ti...>>
+{
+	using type = TList<Ts...>;
+};
+
+/// unique
+template<typename T, typename Ts> struct UniqueTrait;
+
+template<typename... T, typename Ti, typename... Ts>
+struct UniqueTrait<TList<T...>, TList<Ti, Ts...>>
+{
+	using BaseType = TList<T...>;
+	using type = std::conditional_t<
+		std::disjunction_v<std::is_same<Ti, Ts>...>,
+		typename UniqueTrait<TList<T...    >, TList<Ts...>>::type,
+		typename UniqueTrait<TList<T..., Ti>, TList<Ts...>>::type>;
+};
+
+template<typename... T>
+struct UniqueTrait<TList<T...>, TList<>>
+{
+	using type = TList<T...>;
+};
+
 /// TList
 template<typename... Ts>
 struct TList
 {
+	constexpr TList() noexcept = default;
+	template<typename... Ti> explicit constexpr TList(Ti&&...) noexcept : TList() {}
+
 	// F: struct { using type = 'Ts'?; } => F<Ts>::type
 	template<template<typename...> typename F>
 	using To = TList<typename F<Ts>::type...>;
@@ -82,6 +119,11 @@ struct TList
 
 	template<typename... Tx>
 	using Append = TList<Ts..., Tx...>;
+
+	template<std::size_t s>
+	using Repeat = typename RepeatTrait<s, TList<>, TList>::type;
+
+	using Unique = typename UniqueTrait<TList<>, TList>::type;
 
 	using RemoveFirst = typename RemoveFirstTrait<Ts...>::type;
 
@@ -163,6 +205,8 @@ struct TList<>
 	template<typename>
 	static constexpr std::size_t findLast() { return npos; }
 };
+
+template<typename... Ts> TList(Ts...) -> TList<Ts...>;
 
 /// merge
 template<typename... Ts> struct MergeTrait;

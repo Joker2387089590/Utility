@@ -3,6 +3,7 @@
 
 namespace Enums::Detail
 {
+/// for(auto e : enumRanges<EnumName>) doSomething(e);
 #define DeclEnum(EnumName, ...) enum EnumName { __VA_ARGS__, End, Size = End }
 
 template<typename T, std::enable_if_t<std::is_enum_v<T>, int> = 0>
@@ -28,6 +29,7 @@ struct [[deprecated("use MakeEnum instead")]] EnumRanges
 template<typename E> [[deprecated("use MakeEnum instead")]]
 inline constexpr auto enumRanges = EnumRanges<E>{};
 
+/// for(auto e : EnumName{}) doSomething(e);
 #define MakeEnum(EnumName, ...) \
 enum class EnumName { __VA_ARGS__, End, Size = End }; \
 inline constexpr auto begin(EnumName) noexcept { return Enums::Detail::Iterator<EnumName>{0}; } \

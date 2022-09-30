@@ -52,7 +52,6 @@ inline auto operator""_fatal(const char* str, std::size_t size)
 				fmt::vformat(f, fmt::make_format_args(fwd(args)...)));
 	};
 }
-
 }
 
 #define ARG(v) fmt::arg(#v, EasyFmts::castEnum(v))
@@ -67,6 +66,7 @@ decltype(auto) castEnum(const T& vv)
 		return vv;
 };
 
+// use '@...^' instead of '{...}' as format placeholder
 template<typename... Args>
 inline auto fjson(std::string_view f, Args&&... args)
 {
@@ -186,6 +186,8 @@ struct fmt::formatter<QLatin1String, char> : CFormatter
 
 #endif
 
+#ifndef EASY_FMT_NO_USING_LITERALS_NAMESPACE
 using namespace EasyFmts::Literals;
+#endif
 
 #undef fwd

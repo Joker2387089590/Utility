@@ -370,7 +370,6 @@ struct tuple_element<i, Tuples::Detail::Tuple<Ts...>>
 {
 	using type = typename Tuples::Detail::Tuple<Ts...>::template At<i>;
 };
-
 }
 
 namespace Tuples

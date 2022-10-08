@@ -120,6 +120,7 @@ struct TList
 	template<typename... Tx>
 	using Append = TList<Ts..., Tx...>;
 
+	// TList<T1, T2>::Repeat<3> => TList<T1, T2, T1, T2, T1, T2>
 	template<std::size_t s>
 	using Repeat = typename RepeatTrait<s, TList<>, TList>::type;
 

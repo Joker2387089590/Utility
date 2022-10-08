@@ -1,5 +1,4 @@
 #pragma once
-#include <type_traits>
 #include <functional>
 #include <Utility/TypeList.h>
 
@@ -97,9 +96,9 @@ template<typename R, typename... Args>
 struct TypedLambdaHelper<R, TList<Args...>>
 {
 	template<typename F>
-	static auto wrap(F&& f)
+	static constexpr auto wrap(F&& f)
 	{
-		return [f = std::forward<F>(f)](Args... ts) -> R {
+		return [f = std::forward<F>(f)](Args... ts) constexpr -> R {
 			return f(std::forward<Args>(ts)...);
 		};
 	}
@@ -121,8 +120,8 @@ struct FuncPtrWrapper<R(Args...)>
 	using FuncPtr = R(*)(Args...);
 	struct type
 	{
-		type(FuncPtr f) noexcept : f(f) {}
-		R operator()(Args... args) const { return f(args...); }
+		constexpr type(FuncPtr f) noexcept : f(f) {}
+		constexpr R operator()(Args... args) const { return f(std::forward<Args>(args)...); }
 		FuncPtr f;
 	};
 };
@@ -130,7 +129,12 @@ struct FuncPtrWrapper<R(Args...)>
 template<typename... Vs>
 struct Visitor : FuncPtrWrapper<Vs>::type...
 {
-	template<typename V> using Base = typename FuncPtrWrapper<V>::type;
+	template<typename V>
+	using Base = typename FuncPtrWrapper<V>::type;
+
+	template<typename... Vi>
+	constexpr Visitor(Vi&&... fs) : Base<Vs>(std::forward<Vi>(fs))... {}
+
 	using Base<Vs>::operator()...;
 };
 
@@ -145,6 +149,9 @@ using Detail::FunctorReturn;
 using Detail::FunctorClass;
 using Detail::FunctorArguments;
 using Detail::FunctorInvoker;
+
+/// [...](auto&&... args) -> auto {...} => [...](As...) -> R {...}
 using Detail::typedLambda;
+
 using Detail::Visitor;
 }

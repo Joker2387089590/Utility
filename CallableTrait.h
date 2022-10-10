@@ -104,6 +104,7 @@ struct TypedLambdaHelper<R, TList<Args...>>
 	}
 };
 
+/// [...](auto...) {...} => [...](As...) -> R {...}
 template<typename Fr, typename F>
 constexpr auto typedLambda(F&& f)
 {
@@ -111,6 +112,20 @@ constexpr auto typedLambda(F&& f)
 	using Helper = TypedLambdaHelper<typename Call::Return, typename Call::Arguments>;
 	return Helper::wrap(std::forward<F>(f));
 }
+
+template<typename Fr>
+struct TypedLambdaCpo
+{
+	template<typename F>
+	friend auto operator|(F&& f, TypedLambdaCpo)
+	{
+		return typedLambda<Fr>(std::forward<F>(f));
+	}
+};
+
+/// [...](auto...) {...} | invokeAs<int(int)> => [...](int) -> int {...}
+template<typename Fr>
+inline constexpr auto invokeAs = TypedLambdaCpo<Fr>{};
 
 template<typename F> struct FuncPtrWrapper { using type = F; };
 
@@ -150,8 +165,8 @@ using Detail::FunctorClass;
 using Detail::FunctorArguments;
 using Detail::FunctorInvoker;
 
-/// [...](auto&&... args) -> auto {...} => [...](As...) -> R {...}
 using Detail::typedLambda;
+using Detail::invokeAs;
 
 using Detail::Visitor;
 }

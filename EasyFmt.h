@@ -52,6 +52,15 @@ inline auto operator""_fatal(const char* str, std::size_t size)
 				fmt::vformat(f, fmt::make_format_args(fwd(args)...)));
 	};
 }
+
+#ifndef EASY_FMT_NO_QT
+inline auto operator""_qfmt(const char* str, std::size_t size)
+{
+    return [f = operator""_fmt(str, size)](auto&&... args) -> QString {
+        return QString::fromStdString(std::string(f(fwd(args)...)));
+    };
+}
+#endif
 }
 
 #define ARG(v) fmt::arg(#v, EasyFmts::castEnum(v))

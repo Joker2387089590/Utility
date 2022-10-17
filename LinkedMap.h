@@ -163,11 +163,9 @@ private:
 
 public:
     LinkMap() : m(), h{} {};
-    LinkMap(std::initializer_list<std::pair<K, V>> values) :
-        LinkMap()
+    LinkMap(std::initializer_list<std::pair<K, V>> values) : LinkMap()
     {
-        for(auto&& [key, value] : values)
-            emplace(std::move(key), std::move(value));
+        for(auto&& [key, value] : values) emplace(key, value);
     }
 
 public:
@@ -186,8 +184,8 @@ public:
     template<typename Key> V& at(Key&& k);
 
 public:
-    ListIter list() { return { static_cast<Node*>(h.next), &h }; }
-    MapIter map() { return { m.begin(), m }; }
+    ListIter list() & { return { static_cast<Node*>(h.next), &h }; }
+    MapIter map() & { return { m.begin(), m }; }
 
 private:
     Map m;

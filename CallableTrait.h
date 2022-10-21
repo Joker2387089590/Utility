@@ -1,5 +1,4 @@
 #pragma once
-#include <type_traits>
 #include <functional>
 #include <Utility/TypeList.h>
 
@@ -97,14 +96,15 @@ template<typename R, typename... Args>
 struct TypedLambdaHelper<R, TList<Args...>>
 {
 	template<typename F>
-	static auto wrap(F&& f)
+	static constexpr auto wrap(F&& f)
 	{
-		return [f = std::forward<F>(f)](Args... ts) -> R {
+		return [f = std::forward<F>(f)](Args... ts) constexpr -> R {
 			return f(std::forward<Args>(ts)...);
 		};
 	}
 };
 
+/// [...](auto...) {...} => [...](As...) -> R {...}
 template<typename Fr, typename F>
 constexpr auto typedLambda(F&& f)
 {
@@ -112,6 +112,20 @@ constexpr auto typedLambda(F&& f)
 	using Helper = TypedLambdaHelper<typename Call::Return, typename Call::Arguments>;
 	return Helper::wrap(std::forward<F>(f));
 }
+
+template<typename Fr>
+struct TypedLambdaCpo
+{
+	template<typename F>
+	friend auto operator|(F&& f, TypedLambdaCpo)
+	{
+		return typedLambda<Fr>(std::forward<F>(f));
+	}
+};
+
+/// [...](auto...) {...} | invokeAs<int(int)> => [...](int) -> int {...}
+template<typename Fr>
+inline constexpr auto invokeAs = TypedLambdaCpo<Fr>{};
 
 template<typename F> struct FuncPtrWrapper { using type = F; };
 
@@ -121,8 +135,8 @@ struct FuncPtrWrapper<R(Args...)>
 	using FuncPtr = R(*)(Args...);
 	struct type
 	{
-		type(FuncPtr f) noexcept : f(f) {}
-		R operator()(Args... args) const { return f(args...); }
+		constexpr type(FuncPtr f) noexcept : f(f) {}
+		constexpr R operator()(Args... args) const { return f(std::forward<Args>(args)...); }
 		FuncPtr f;
 	};
 };
@@ -130,7 +144,12 @@ struct FuncPtrWrapper<R(Args...)>
 template<typename... Vs>
 struct Visitor : FuncPtrWrapper<Vs>::type...
 {
-	template<typename V> using Base = typename FuncPtrWrapper<V>::type;
+	template<typename V>
+	using Base = typename FuncPtrWrapper<V>::type;
+
+	template<typename... Vi>
+	constexpr Visitor(Vi&&... fs) : Base<Vs>(std::forward<Vi>(fs))... {}
+
 	using Base<Vs>::operator()...;
 };
 
@@ -145,6 +164,9 @@ using Detail::FunctorReturn;
 using Detail::FunctorClass;
 using Detail::FunctorArguments;
 using Detail::FunctorInvoker;
+
 using Detail::typedLambda;
+using Detail::invokeAs;
+
 using Detail::Visitor;
 }

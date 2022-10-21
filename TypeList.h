@@ -219,6 +219,7 @@ struct TList
 	// TList<T0, T1, T2> => TList<T2, T1, T0>
 	using Reverse = typename ReverseTrait<Ts...>::type;
 
+	// TList<T1, T2>::Repeat<3> => TList<T1, T2, T1, T2, T1, T2>
 	template<std::size_t s>
 	using Repeat = typename RepeatTrait<s, TList<>, TList>::type;
 

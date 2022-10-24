@@ -137,7 +137,7 @@ struct fmt::formatter<QString, char16_t> : U16Formatter
 	using U16Formatter::parse;
 
 	template <typename FormatContext>
-	auto format(const QString& s, FormatContext& context)
+	auto format(const QString& s, FormatContext& context) const
 	{
 		auto data = reinterpret_cast<const char16_t*>(s.utf16());
 		auto size = std::size_t(s.size());
@@ -151,7 +151,7 @@ struct fmt::formatter<QString, char> : CFormatter
 	using CFormatter::parse;
 
 	template <typename FormatContext>
-	auto format(const QString& s, FormatContext& context)
+	auto format(const QString& s, FormatContext& context) const
 	{
 		return CFormatter::format(s.toStdString(), context);
 	}
@@ -163,7 +163,7 @@ struct fmt::formatter<QString, wchar_t> : WFormatter
 	using WFormatter::parse;
 
 	template <typename FormatContext>
-	auto format(const QString& s, FormatContext& context)
+	auto format(const QString& s, FormatContext& context) const
 	{
 		return WFormatter::format(s.toStdWString(), context);
 	}
@@ -174,7 +174,7 @@ struct fmt::formatter<QByteArray, char> : CFormatter
 {
 	using CFormatter::parse;
 	template <typename FormatContext>
-	auto format(const QByteArray& s, FormatContext& context)
+	auto format(const QByteArray& s, FormatContext& context) const
 	{
 		auto view = std::string_view(s.data(), s.size());
 		return CFormatter::format(view, context);
@@ -186,10 +186,49 @@ struct fmt::formatter<QLatin1String, char> : CFormatter
 {
 	using CFormatter::parse;
 	template <typename FormatContext>
-	auto format(const QLatin1String& s, FormatContext& context)
+	auto format(const QLatin1String& s, FormatContext& context) const
 	{
 		auto view = std::string_view(s.data(), s.size());
 		return CFormatter::format(view, context);
+	}
+};
+
+template<>
+struct fmt::formatter<QChar, char16_t> : fmt::formatter<char16_t, char16_t>
+{
+	using Base = fmt::formatter<char16_t, char16_t>;
+	using Base::parse;
+	template <typename FormatContext>
+	auto format(QChar c, FormatContext& context) const
+	{
+		return Base::format(c.unicode(), context);
+	}
+};
+
+template<>
+struct fmt::formatter<QChar, char> : fmt::formatter<char, char>
+{
+	using Base = fmt::formatter<char, char>;
+	using Base::parse;
+	template <typename FormatContext>
+	auto format(QChar c, FormatContext& context) const
+	{
+		return Base::format(c.toLatin1(), context);
+	}
+};
+
+template<>
+struct fmt::formatter<QChar, wchar_t> : fmt::formatter<wchar_t, wchar_t>
+{
+	using Base = fmt::formatter<wchar_t, wchar_t>;
+	using Base::parse;
+	template <typename FormatContext>
+	auto format(QChar c, FormatContext& context) const
+	{
+		// why so heavy: converting characters' encode is never trival.
+		wchar_t wc = 0;
+		QString(c).toWCharArray(&wc);
+		return Base::format(wc, context);
 	}
 };
 

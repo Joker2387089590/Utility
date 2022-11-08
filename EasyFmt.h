@@ -29,7 +29,11 @@ inline namespace Literals
 inline auto operator""_print(const char* str, std::size_t size)
 {
 	return [f = std::string_view(str, size)](auto&&... args) {
-		fmt::print(fg(fmt::color::aqua), f, fwd(args)...);
+		fmt::print(
+#ifndef EASY_FMT_NO_COLOR
+			fg(fmt::color::aqua),
+#endif
+			f, fwd(args)...);
 		fmt::print("\n");
 	};
 }
@@ -37,7 +41,11 @@ inline auto operator""_print(const char* str, std::size_t size)
 inline auto operator""_err(const char* str, std::size_t size)
 {
 	return [f = std::string_view(str, size)](auto&&... args) {
-		fmt::print(stderr, fg(fmt::color::crimson), f, fwd(args)...);
+		fmt::print(stderr,
+#ifndef EASY_FMT_NO_COLOR
+				   fg(fmt::color::crimson),
+#endif
+				   f, fwd(args)...);
 		fmt::print(stderr, "\n");
 	};
 }

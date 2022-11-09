@@ -71,7 +71,11 @@ inline auto operator""_qfmt(const char* str, std::size_t size)
 #endif
 }
 
+#ifndef ARG
 #define ARG(v) fmt::arg(#v, EasyFmts::castEnum(v))
+#else
+#error duplicate macro 'ARG' defined!
+#endif
 
 template<typename T>
 decltype(auto) castEnum(const T& vv)

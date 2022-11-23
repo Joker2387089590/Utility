@@ -2,6 +2,7 @@
 #include <vector>
 #include <stdexcept>
 #include <fmt/format.h>
+#include <fmt/xchar.h>
 #include <fmt/color.h>
 
 #if !defined(EASY_FMT_NO_QT) &&  __has_include(<QString>)
@@ -24,6 +25,26 @@ inline namespace Literals
         else
 			return fmt::vformat(f, fmt::make_format_args(fwd(args)...));
 	};
+}
+
+[[nodiscard]] inline auto operator""_fmt(const char16_t* str, std::size_t size)
+{
+    return [f = std::u16string_view(str, size)](auto&&... args) constexpr {
+        if constexpr (sizeof...(args) == 0)
+            return f;
+        else
+            return fmt::vformat(f, fmt::make_format_args(fwd(args)...));
+    };
+}
+
+[[nodiscard]] inline auto operator""_fmt(const wchar_t* str, std::size_t size)
+{
+    return [f = std::wstring_view(str, size)](auto&&... args) constexpr {
+        if constexpr (sizeof...(args) == 0)
+            return f;
+        else
+            return fmt::vformat(f, fmt::make_format_args(fwd(args)...));
+    };
 }
 
 inline auto operator""_print(const char* str, std::size_t size)

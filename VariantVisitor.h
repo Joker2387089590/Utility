@@ -21,18 +21,34 @@ public:
     template<typename T> auto* tryAs() noexcept { return std::get_if<T>(&self()); }
     template<typename T> auto* tryAs() const noexcept { return std::get_if<T>(&self()); }
 
-    template<typename T> bool is() const noexcept { return std::holds_alternative<T>(self()); }
+	template<typename... Ts>
+	bool is() const noexcept { return (std::holds_alternative<Ts>(self()) || ...); }
 
 	template<typename... Fs>
 	decltype(auto) visit(Fs&&... fs)
     {
         return std::visit(Visitor{std::forward<Fs>(fs)...}, self());
 	}
+
 	template<typename... Fs>
 	decltype(auto) visit(Fs&&... fs) const
     {
         return std::visit(Visitor{std::forward<Fs>(fs)...}, self());
     }
+
+	template<typename T, typename... Fs>
+	decltype(auto) visitTo(Fs&&... fs)
+	{
+		using Callables::returnAs;
+		return std::visit(Visitor{(std::forward<Fs>(fs) | returnAs<T>)...}, self());
+	}
+
+	template<typename T, typename... Fs>
+	decltype(auto) visitTo(Fs&&... fs) const
+	{
+		using Callables::returnAs;
+		return std::visit(Visitor{(std::forward<Fs>(fs) | returnAs<T>)...}, self());
+	}
 
 private:
     Base& self() { return *this; }
@@ -56,5 +72,6 @@ template<typename... Ts> using Variant = typename TakeOneTrait<Ts...>::type;
 
 namespace Variants
 {
-using Detail::Visitor, Detail::Variant;
+using Detail::Visitor;
+using Detail::Variant;
 }

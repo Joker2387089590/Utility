@@ -67,9 +67,9 @@ class ListNode : private StorageWrapper<V>, public ListNodeBase
 {
     using Value = StorageWrapper<V>;
 public:
-    template<typename... As>
-    ListNode(ListNodeBase* after, As&&... as) :
-        Value(std::forward<As>(as)...),
+	template<typename Tag, typename... As>
+	ListNode(ListNodeBase* after, Tag tag, As&&... as) :
+		Value(tag, std::forward<As>(as)...),
         ListNodeBase{after}
     {}
 
@@ -79,6 +79,8 @@ public:
     using Value::value;
 };
 
+// 既可按插入顺序遍历，也可按 Key 值遍历的 Map
+// 注意：如果不需要按 Key 值遍历，应该用 std::vector<std::pair<K, V>>!!!
 template<typename K, typename V>
 class LinkMap
 {
@@ -93,74 +95,6 @@ private:
     class ListIter;
     class MapIter;
 
-private:
-    class MapIter
-    {
-        friend LinkMap;
-        using Iter = typename Map::iterator;
-    public:
-        MapIter& operator++() { ++i; return *this; }
-        MapIter& operator--() { --i; return *this; }
-
-        Pair& operator*() const { return const_cast<Pair&>(*objAddr(&i->first, &Pair::first)); }
-        Pair* operator->() const { return &*this; }
-
-        operator bool() const { return i != m.end(); }
-        bool operator==(const MapIter& r) const noexcept { return i == r.i; }
-
-        MapIter begin()	const noexcept { return *this; }
-        MapIter end()	const noexcept { return { m.end(), m }; }
-
-    private:
-        MapIter(Iter i, Map& m) : i(i), m(m) {}
-
-    private:
-        Iter i;
-        Map& m;
-    };
-
-    class ListIter
-    {
-        friend LinkMap;
-        class Proxy
-        {
-        public:
-            Pair* operator->() const { return objAddr(&node->value(), &Pair::second); }
-        private:
-            friend ListIter;
-            Node* node;
-        };
-
-    public:
-        ListIter& operator++() { check(); node = cast(node->next); return *this; }
-        ListIter& operator--() { check(); node = node->pre; return *this; }
-
-        Pair& operator*()		const { check(); return *objAddr(&node->value(), &Pair::second); }
-        Proxy operator->()		const { check(); return Proxy{node}; }
-        Pair& operator[](int i) const { return *std::next(*this, i); }
-
-        operator bool()						const noexcept { return node != h; }
-        bool operator==(const ListIter& r)	const noexcept { return node == r.node && h == r.h; }
-
-        ListIter begin()	const noexcept { return *this; }
-        ListIter end()		const noexcept { return { cast(h), h }; }
-
-        const K& key() const { return (**this).first; }
-        V& value() const { return (**this).second; }
-
-    private:
-        ListIter(Node* n, ListNodeBase* h) noexcept : node(n), h(h) {}
-        void check() const
-        {
-            if(!*this) throw std::out_of_range("This iterator is out of range!");
-        }
-        static Node* cast(ListNodeBase* n) { return static_cast<Node*>(n); }
-
-    private:
-        Node* node;
-        ListNodeBase* const h;
-    };
-
 public:
     LinkMap() : m(), h{} {};
     LinkMap(std::initializer_list<std::pair<K, V>> values) : LinkMap()
@@ -168,24 +102,31 @@ public:
         for(auto&& [key, value] : values) emplace(key, value);
     }
 
-public:
-    template<typename Key, typename... Vs> V& insert(Key&& k, Vs&&... vs);  // init
-    template<typename Key, typename... Vs> V& emplace(Key&& k, Vs&&... vs); // ctor
+	LinkMap(const LinkMap&) = delete;
+	LinkMap& operator=(const LinkMap&) & = delete;
 
-    void erase(K& k);
-    void erase(ListIter iter);
-    void erase(MapIter iter);
+public:
+	using InsertResult = std::pair<V&, bool>;
+	template<typename Key, typename... Vs> InsertResult insert(Key&& k, Vs&&... vs);  // init
+	template<typename Key, typename... Vs> InsertResult emplace(Key&& k, Vs&&... vs); // ctor
+
+	void erase(K& k) noexcept;
+	void erase(ListIter iter) noexcept;
+	void erase(MapIter iter) noexcept;
 
     template<typename Key>
     bool contains(Key&& k) const noexcept { return m.find(k) != m.end(); }
 
     std::size_t size() const noexcept { return m.size(); }
 
-    template<typename Key> V& at(Key&& k);
+	template<typename Key> V& at(Key&& k);
+	template<typename Key> const V& at(Key&& k) const;
 
-public:
     ListIter list() & { return { static_cast<Node*>(h.next), &h }; }
     MapIter map() & { return { m.begin(), m }; }
+
+	template<typename Key> ListIter list(Key&& key) &;
+	template<typename Key> std::size_t indexOf(Key&& key) const;
 
 private:
     Map m;
@@ -193,25 +134,136 @@ private:
 };
 
 template<typename K, typename V>
-template<typename Key, typename... Vs>
-V& LinkMap<K, V>::insert(Key&& k, Vs&&... vs)
+class LinkMap<K, V>::MapIter : public Map::iterator
 {
-    auto [pos, b] = m.try_emplace(std::forward<Key>(k), &h,
-                                  init, std::forward<Vs>(vs)...); []{}();
-    return pos->second.value();
+	friend LinkMap;
+	using Iter = typename Map::iterator;
+private:
+	MapIter(Iter i, Map& m) : Iter(i), m(m) {}
+	~MapIter() = default;
+
+public:
+	MapIter(const MapIter&) = default;
+	MapIter& operator=(const MapIter&) & = default;
+
+public:
+	using Iter::operator++;
+	using Iter::operator--;
+
+	Pair& operator*() const
+	{
+		const Pair* pair = objAddr(&self()->first, &Pair::first);
+		return const_cast<Pair&>(*pair);
+	}
+
+	Pair* operator->() const { return std::addressof(**this); }
+
+	operator bool() const { return *this != m.end(); }
+
+	bool operator==(const MapIter& r) const noexcept { return self() == r.self(); }
+
+	MapIter begin()	const noexcept { return *this; }
+	MapIter end()	const noexcept { return { m.end(), m }; }
+
+private:
+	using Iter::operator*;
+	using Iter::operator->;
+
+	Iter& self() { return *this; }
+	const Iter& self() const { return *this; }
+
+private:
+	Map& m;
+};
+
+template<typename K, typename V>
+class LinkMap<K, V>::ListIter
+{
+private:
+	friend LinkMap;
+	class Proxy
+	{
+	public:
+		Pair* operator->() const { return objAddr(&node->value(), &Pair::second); }
+	private:
+		friend ListIter;
+		Node* node;
+	};
+
+public:
+	using iterator_category = std::bidirectional_iterator_tag;
+	using value_type = Pair;
+	using difference_type = std::ptrdiff_t;
+	using pointer = Proxy;
+	using reference = Pair&;
+
+private:
+	ListIter(Node* n, ListNodeBase* h) noexcept : node(n), h(h) {}
+
+public: // pointer-like
+	ListIter& operator++() { check(); node = cast(node->next); return *this; }
+	ListIter& operator--() { check(); node = cast(node->pre);  return *this; }
+
+	ListIter operator++(int) { check(); auto temp = node; node = cast(node->next); return {temp, h}; }
+	ListIter operator--(int) { check(); auto temp = node; node = cast(node->pre);  return {temp, h}; }
+
+	Pair& operator*()		const { check(); return *objAddr(&node->value(), &Pair::second); }
+	Proxy operator->()		const { check(); return Proxy{node}; }
+	Pair& operator[](int i) const { return *std::next(*this, i); }
+
+	explicit operator bool() const noexcept { return node != h; }
+
+	bool operator==(const ListIter& r) const noexcept { return (node == r.node) && (h == r.h); }
+	bool operator!=(const ListIter& r) const noexcept { return !(*this == r); }
+
+public: // range-like
+	ListIter begin() const noexcept { return *this; }
+	ListIter end()   const noexcept { return { cast(h), h }; }
+
+public:
+	const K& key() const { return (**this).first; }
+	V& value()     const { return (**this).second; }
+
+	std::size_t index() const
+	{
+		check();
+		auto begin = ListIter(cast(h->next), h);
+		return std::distance(begin, *this);
+	}
+
+private:
+	void check() const
+	{
+		if(node == h) throw std::out_of_range("This iterator is out of range!");
+	}
+
+	static Node* cast(ListNodeBase* n) noexcept { return static_cast<Node*>(n); }
+
+private:
+	Node* node;
+	ListNodeBase* const h;
+};
+
+template<typename K, typename V>
+template<typename Key, typename... Vs>
+std::pair<V&, bool> LinkMap<K, V>::insert(Key&& k, Vs&&... vs)
+{
+	auto [pos, b] =
+		m.try_emplace(std::forward<Key>(k), &h, init, std::forward<Vs>(vs)...);
+	return {pos->second.value(), b};
 }
 
 template<typename K, typename V>
 template<typename Key, typename... Vs>
-V& LinkMap<K, V>::emplace(Key&& k, Vs&&... vs)
+std::pair<V&, bool> LinkMap<K, V>::emplace(Key&& k, Vs&&... vs)
 {
-    auto [pos, b] = m.try_emplace(std::forward<Key>(k), &h,
-                                  ctor, std::forward<Vs>(vs)...); []{}();
-    return pos->second.value();
+	auto [pos, b] =
+		m.try_emplace(std::forward<Key>(k), &h, ctor, std::forward<Vs>(vs)...);
+	return {pos->second.value(), b};
 }
 
 template<typename K, typename V>
-void LinkMap<K, V>::erase(K& k)
+void LinkMap<K, V>::erase(K& k) noexcept
 {
     auto pos = m.find(k);
     if(pos == m.end()) return;
@@ -220,7 +272,7 @@ void LinkMap<K, V>::erase(K& k)
 }
 
 template<typename K, typename V>
-void LinkMap<K, V>::erase(ListIter iter)
+void LinkMap<K, V>::erase(ListIter iter) noexcept
 {
     if(!iter) return;
     iter.node->remove();
@@ -228,7 +280,7 @@ void LinkMap<K, V>::erase(ListIter iter)
 }
 
 template<typename K, typename V>
-void LinkMap<K, V>::erase(MapIter iter)
+void LinkMap<K, V>::erase(MapIter iter) noexcept
 {
     if(iter == m.end()) return;
     iter->second.remove();
@@ -237,9 +289,37 @@ void LinkMap<K, V>::erase(MapIter iter)
 
 template<typename K, typename V>
 template<typename Key>
-V& LinkMap<K, V>::at(Key&& k)
+const V& LinkMap<K, V>::at(Key&& k) const
 {
     auto pos = m.find(k);
-    if(pos == m.end()) throw std::exception();
+	if(pos == m.cend()) throw std::exception();
     return pos->second.value();
+}
+
+template<typename K, typename V>
+template<typename Key>
+V& LinkMap<K, V>::at(Key&& k)
+{
+	auto pos = m.find(k);
+	if(pos == m.cend()) throw std::exception();
+	return pos->second.value();
+}
+
+template<typename K, typename V>
+template<typename Key>
+auto LinkMap<K, V>::list(Key&& key) & -> LinkMap<K, V>::ListIter
+{
+	auto pos = m.find(key);
+	if(pos == m.cend()) throw std::exception();
+	return {&pos->second, &h};
+}
+
+template<typename K, typename V>
+template<typename Key>
+std::size_t LinkMap<K, V>::indexOf(Key&& key) const
+{
+	auto& self = const_cast<LinkMap&>(*this);
+	auto pos = self.m.find(key);
+	if(pos == m.cend()) throw std::exception();
+	return ListIter{&pos->second, &self.h}.index();
 }

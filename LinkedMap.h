@@ -122,6 +122,9 @@ public:
 	template<typename Key> V& at(Key&& k);
 	template<typename Key> const V& at(Key&& k) const;
 
+	template<typename Key> V* tryGet(Key&& k) noexcept;
+	template<typename Key> const V* tryGet(Key&& k) const noexcept;
+
     ListIter list() & { return { static_cast<Node*>(h.next), &h }; }
     MapIter map() & { return { m.begin(), m }; }
 
@@ -303,6 +306,26 @@ V& LinkMap<K, V>::at(Key&& k)
 	auto pos = m.find(k);
 	if(pos == m.cend()) throw std::exception();
 	return pos->second.value();
+}
+
+template<typename K, typename V>
+template<typename Key> V* LinkMap<K, V>::tryGet(Key&& k) noexcept
+{
+	auto pos = m.find(k);
+	if(pos == m.cend())
+		return nullptr;
+	else
+		return &pos->second.value();
+}
+
+template<typename K, typename V>
+template<typename Key> const V* LinkMap<K, V>::tryGet(Key&& k) const noexcept
+{
+	auto pos = m.find(k);
+	if(pos == m.cend())
+		return nullptr;
+	else
+		return &pos->second.value();
 }
 
 template<typename K, typename V>

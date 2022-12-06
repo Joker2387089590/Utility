@@ -15,36 +15,39 @@ public:
 
     static constexpr std::size_t typeCount() { return sizeof...(Vs); }
 
-    template<typename T> decltype(auto) as() { return std::get<T>(self()); }
-    template<typename T> decltype(auto) as() const { return std::get<T>(self()); }
+	template<typename T> constexpr decltype(auto) as()       { return std::get<T>(self()); }
+	template<typename T> constexpr decltype(auto) as() const { return std::get<T>(self()); }
 
-    template<typename T> auto* tryAs() noexcept { return std::get_if<T>(&self()); }
-    template<typename T> auto* tryAs() const noexcept { return std::get_if<T>(&self()); }
+	template<typename T> constexpr auto* tryAs() noexcept       { return std::get_if<T>(&self()); }
+	template<typename T> constexpr auto* tryAs() const noexcept { return std::get_if<T>(&self()); }
 
 	template<typename... Ts>
-	bool is() const noexcept { return (std::holds_alternative<Ts>(self()) || ...); }
+	constexpr bool is() const noexcept
+	{
+		return ((std::holds_alternative<Ts>(self()) || ...) || false);
+	}
 
 	template<typename... Fs>
-	decltype(auto) visit(Fs&&... fs)
+	constexpr decltype(auto) visit(Fs&&... fs)
     {
         return std::visit(Visitor{std::forward<Fs>(fs)...}, self());
 	}
 
 	template<typename... Fs>
-	decltype(auto) visit(Fs&&... fs) const
+	constexpr decltype(auto) visit(Fs&&... fs) const
     {
         return std::visit(Visitor{std::forward<Fs>(fs)...}, self());
     }
 
 	template<typename T, typename... Fs>
-	decltype(auto) visitTo(Fs&&... fs)
+	constexpr decltype(auto) visitTo(Fs&&... fs)
 	{
 		using Callables::returnAs;
 		return std::visit(Visitor{(std::forward<Fs>(fs) | returnAs<T>)...}, self());
 	}
 
 	template<typename T, typename... Fs>
-	decltype(auto) visitTo(Fs&&... fs) const
+	constexpr decltype(auto) visitTo(Fs&&... fs) const
 	{
 		using Callables::returnAs;
 		return std::visit(Visitor{(std::forward<Fs>(fs) | returnAs<T>)...}, self());

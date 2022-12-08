@@ -1,4 +1,7 @@
 #pragma once
+#ifndef EASY_FMT_H
+#define EASY_FMT_H
+
 #include <vector>
 #include <stdexcept>
 #include <fmt/format.h>
@@ -272,3 +275,5 @@ using namespace EasyFmts::Literals;
 #endif
 
 #undef fwd
+
+#endif // EASY_FMT_H

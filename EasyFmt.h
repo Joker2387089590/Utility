@@ -10,6 +10,7 @@
 
 #if !defined(EASY_FMT_NO_QT) &&  __has_include(<QString>)
 #include <QString>
+#include <QDebug>
 #else
 #define EASY_FMT_NO_QT
 #endif
@@ -53,24 +54,28 @@ inline namespace Literals
 inline auto operator""_print(const char* str, std::size_t size)
 {
 	return [f = std::string_view(str, size)](auto&&... args) {
-		fmt::print(
-#ifndef EASY_FMT_NO_COLOR
-			fg(fmt::color::aqua),
-#endif
-			f, fwd(args)...);
-		fmt::print("\n");
+        qDebug() <<
+            fmt::vformat(f, fmt::make_format_args(fwd(args)...)).c_str();
+//		fmt::print(
+//#ifndef EASY_FMT_NO_COLOR
+//			fg(fmt::color::aqua),
+//#endif
+//			f, fwd(args)...);
+//		fmt::print("\n");
 	};
 }
 
 inline auto operator""_err(const char* str, std::size_t size)
 {
-	return [f = std::string_view(str, size)](auto&&... args) {
-		fmt::print(stderr,
-#ifndef EASY_FMT_NO_COLOR
-				   fg(fmt::color::crimson),
-#endif
-				   f, fwd(args)...);
-		fmt::print(stderr, "\n");
+    return [f = std::string_view(str, size)](auto&&... args) {
+        qCritical() <<
+            fmt::vformat(f, fmt::make_format_args(fwd(args)...)).c_str();
+//		fmt::print(stderr,
+//#ifndef EASY_FMT_NO_COLOR
+//				   fg(fmt::color::crimson),
+//#endif
+//				   f, fwd(args)...);
+//		fmt::print(stderr, "\n");
 	};
 }
 

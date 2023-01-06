@@ -4,6 +4,7 @@
 #include <vector>
 #include <string>
 
+/// read content of a file with the help of std only
 namespace ReadFiles
 {
 namespace fs = std::filesystem;
@@ -17,7 +18,7 @@ inline std::ifstream getStream(const fs::path& file)
 		throw std::runtime_error("can't open file:" + file.string());
 	return stream;
 }
-}
+} // namespace Detail
 
 inline std::vector<char> readFile(const fs::path& file)
 {
@@ -41,7 +42,7 @@ inline std::string readText(const fs::path& file)
 
 	// erase suffix first
 	auto bpos = content.find_last_not_of('\0'); // == npos if all zero
-	content.erase(bpos + 1); // if pos == npos, pos + 1 == 0 (unsigned overflow)
+	content.erase(bpos + 1); // if pos == npos, pos + 1 == 0 (unsigned overflow is well defined)
 	auto fpos = content.find_first_not_of('\0');
 	if(fpos != content.npos) content.erase(0, fpos);
 
@@ -58,5 +59,4 @@ inline std::vector<std::string> readLines(const fs::path& file)
 	while(std::getline(stream, tmp)) lines.push_back(std::move(tmp));
 	return lines;
 }
-
-}
+} // namespace ReadFiles

@@ -8,19 +8,26 @@ struct ListNodeBase
 public:
     ListNodeBase() noexcept : pre{this}, next{this} {}
     ListNodeBase(ListNodeBase* after) noexcept { insert(after); }
+	~ListNodeBase() noexcept = default;
 
+	ListNodeBase(const ListNodeBase&) = delete;
+	ListNodeBase& operator=(const ListNodeBase&) & = delete;
+	ListNodeBase(ListNodeBase&&) noexcept = delete;
+	ListNodeBase& operator=(ListNodeBase&&) & = delete;
+
+public:
     void insert(ListNodeBase* after) noexcept
     {
-        this->pre = std::exchange(after->pre, this);
-        this->next = std::exchange(pre->next, this);
+		this->pre = after->pre;
+		this->next = after;
+		pre->next = this;
+		after->pre = this;
     }
 
-    template<bool reset = false>
     void remove() noexcept
     {
         next->pre = this->pre;
-        pre->next = this->next;
-        if constexpr (reset) pre = next = this;
+		pre->next = this->next;
     }
 
     void move(ListNodeBase* after) noexcept
@@ -28,6 +35,11 @@ public:
         remove();
         insert(after);
     }
+
+	void reset()
+	{
+		pre = next = this;
+	}
 
 public:
     ListNodeBase* pre;
@@ -113,6 +125,7 @@ public:
 	void erase(K& k) noexcept;
 	void erase(ListIter iter) noexcept;
 	void erase(MapIter iter) noexcept;
+	void clear() noexcept { m.clear(); h.reset(); }
 
     template<typename Key>
     bool contains(Key&& k) const noexcept { return m.find(k) != m.end(); }
@@ -202,6 +215,13 @@ public:
 
 private:
 	ListIter(Node* n, ListNodeBase* h) noexcept : node(n), h(h) {}
+
+public:
+	ListIter(ListIter&&) noexcept = default;
+	ListIter& operator=(ListIter&&) & noexcept = default;
+	ListIter(const ListIter&) noexcept = default;
+	ListIter& operator=(const ListIter&) & noexcept = default;
+	~ListIter() noexcept = default;
 
 public: // pointer-like
 	ListIter& operator++() { check(); node = cast(node->next); return *this; }

@@ -15,7 +15,7 @@
 #define EASY_FMT_NO_QT
 #endif
 
-#define fwd(arg) std::forward<decltype(arg)>(arg)
+#include "Macros.h"
 
 namespace EasyFmts
 {
@@ -279,6 +279,6 @@ struct fmt::formatter<QChar, wchar_t> : fmt::formatter<wchar_t, wchar_t>
 using namespace EasyFmts::Literals;
 #endif
 
-#undef fwd
+#include "MacrosUndef.h"
 
 #endif // EASY_FMT_H

@@ -39,6 +39,13 @@ struct RemoveIfTrait<C, Ti, Ts...>
 template<template<typename...> typename C>
 struct RemoveIfTrait<C> { using type = TList<>; };
 
+template<template<typename...> typename C>
+struct Not
+{
+	template<typename T>
+	struct Type { static constexpr bool value = !C<T>::value; };
+};
+
 /// remove
 template<typename T>
 struct IsSameTrait { template<typename Tx> using IsSame = std::is_same<T, Tx>; };
@@ -240,6 +247,10 @@ struct TList
 	// C: if (C<Ts>::value) remove(Ts)
 	template<template<typename...> typename C>
 	using RemoveIf = typename RemoveIfTrait<C, Ts...>::type;
+
+	// C: if (!C<Ts>::value) remove(Ts)
+	template<template<typename...> typename C>
+	using RemoveNot = typename RemoveIfTrait<Not<C>::template Type, Ts...>::type;
 
 	// Tx: if(Ts == Tx) remove(Ts)
 	template<typename Tx>

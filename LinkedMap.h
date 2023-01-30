@@ -2,6 +2,7 @@
 #include <map>
 #include <stdexcept>
 #include <Utility/ObjectAddress.h>
+#include <Utility/Macros.h>
 
 struct ListNodeBase
 {
@@ -105,7 +106,10 @@ private:
     static_assert(alignof (RealPair) == alignof (Pair));
 
     class ListIter;
+	class ListConstIter;
+
     class MapIter;
+	class MapConstIter;
 
 public:
     LinkMap() : m(), h{} {};
@@ -114,6 +118,7 @@ public:
         for(auto&& [key, value] : values) emplace(key, value);
     }
 
+	// TODO: impl move ctor
 	LinkMap(const LinkMap&) = delete;
 	LinkMap& operator=(const LinkMap&) & = delete;
 
@@ -138,8 +143,11 @@ public:
 	template<typename Key> V* tryGet(Key&& k) noexcept;
 	template<typename Key> const V* tryGet(Key&& k) const noexcept;
 
+public:
     ListIter list() & { return { static_cast<Node*>(h.next), &h }; }
     MapIter map() & { return { m.begin(), m }; }
+	ListConstIter list() const& { return { static_cast<const Node*>(h.next), &h }; }
+	MapConstIter map() const& { return { m.begin(), m }; }
 
 	template<typename Key> ListIter list(Key&& key) &;
 	template<typename Key> std::size_t indexOf(Key&& key) const;
@@ -156,11 +164,8 @@ class LinkMap<K, V>::MapIter : public Map::iterator
 	using Iter = typename Map::iterator;
 private:
 	MapIter(Iter i, Map& m) : Iter(i), m(m) {}
-	~MapIter() = default;
-
 public:
-	MapIter(const MapIter&) = default;
-	MapIter& operator=(const MapIter&) & = default;
+	DefaultClass(MapIter);
 
 public:
 	using Iter::operator++;
@@ -180,6 +185,46 @@ public:
 
 	MapIter begin()	const noexcept { return *this; }
 	MapIter end()	const noexcept { return { m.end(), m }; }
+
+private:
+	using Iter::operator*;
+	using Iter::operator->;
+
+	Iter& self() { return *this; }
+	const Iter& self() const { return *this; }
+
+private:
+	Map& m;
+};
+
+template<typename K, typename V>
+class LinkMap<K, V>::MapConstIter : public Map::const_iterator
+{
+	friend LinkMap;
+	using Iter = typename Map::const_iterator;
+private:
+	MapConstIter(Iter i, Map& m) : Iter(i), m(m) {}
+public:
+	DefaultClass(MapConstIter);
+
+public:
+	using Iter::operator++;
+	using Iter::operator--;
+
+	const Pair& operator*() const
+	{
+		const Pair* pair = objAddr(&self()->first, &Pair::first);
+		return const_cast<Pair&>(*pair);
+	}
+
+	const Pair* operator->() const { return std::addressof(**this); }
+
+	operator bool() const { return *this != m.end(); }
+
+	bool operator==(const MapIter& r) const noexcept { return self() == r.self(); }
+
+	MapConstIter begin() const noexcept { return *this; }
+	MapConstIter end()	 const noexcept { return { m.end(), m }; }
 
 private:
 	using Iter::operator*;
@@ -215,13 +260,8 @@ public:
 
 private:
 	ListIter(Node* n, ListNodeBase* h) noexcept : node(n), h(h) {}
-
 public:
-	ListIter(ListIter&&) noexcept = default;
-	ListIter& operator=(ListIter&&) & noexcept = default;
-	ListIter(const ListIter&) noexcept = default;
-	ListIter& operator=(const ListIter&) & noexcept = default;
-	~ListIter() noexcept = default;
+	DefaultClass(ListIter);
 
 public: // pointer-like
 	ListIter& operator++() { check(); node = cast(node->next); return *this; }
@@ -230,9 +270,9 @@ public: // pointer-like
 	ListIter operator++(int) { check(); auto temp = node; node = cast(node->next); return {temp, h}; }
 	ListIter operator--(int) { check(); auto temp = node; node = cast(node->pre);  return {temp, h}; }
 
-	Pair& operator*()		const { check(); return *objAddr(&node->value(), &Pair::second); }
-	Proxy operator->()		const { check(); return Proxy{node}; }
-	Pair& operator[](int i) const { return *std::next(*this, i); }
+	reference operator*() const { check(); return *objAddr(&node->value(), &Pair::second); }
+	Proxy operator->() const { check(); return Proxy{node}; }
+	reference operator[](int i) const { return *std::next(*this, i); }
 
 	explicit operator bool() const noexcept { return node != h; }
 
@@ -265,6 +305,79 @@ private:
 private:
 	Node* node;
 	ListNodeBase* const h;
+};
+
+template<typename K, typename V>
+class LinkMap<K, V>::ListConstIter
+{
+private:
+	friend LinkMap;
+	class Proxy
+	{
+	public:
+		const Pair* operator->() const { return objAddr(&node->value(), &Pair::second); }
+	private:
+		friend ListConstIter;
+		Node* node;
+	};
+
+public:
+	using iterator_category = std::bidirectional_iterator_tag;
+	using value_type = Pair;
+	using difference_type = std::ptrdiff_t;
+	using pointer = Proxy;
+	using reference = const Pair&;
+
+private:
+	ListConstIter(const Node* n, const ListNodeBase* h) noexcept : node(n), h(h) {}
+public:
+	DefaultClass(ListConstIter);
+
+public: // pointer-like
+	ListConstIter& operator++() { check(); node = cast(node->next); return *this; }
+	ListConstIter& operator--() { check(); node = cast(node->pre);  return *this; }
+
+	ListConstIter operator++(int) { check(); auto temp = node; node = cast(node->next); return {temp, h}; }
+	ListConstIter operator--(int) { check(); auto temp = node; node = cast(node->pre);  return {temp, h}; }
+
+	reference operator*() const { check(); return *objAddr(&node->value(), &Pair::second); }
+	Proxy operator->() const { check(); return Proxy{node}; }
+	reference operator[](int i) const { return *std::next(*this, i); }
+
+	explicit operator bool() const noexcept { return node != h; }
+
+	bool operator==(const ListConstIter& r) const noexcept { return (node == r.node) && (h == r.h); }
+	bool operator!=(const ListConstIter& r) const noexcept { return !(*this == r); }
+
+public: // range-like
+	ListConstIter begin() const noexcept { return *this; }
+	ListConstIter end()   const noexcept { return { cast(h), h }; }
+
+public:
+	const K& key()   const { return (**this).first; }
+	const V& value() const { return (**this).second; }
+
+	std::size_t index() const
+	{
+		check();
+		auto begin = ListConstIter(cast(h->next), h);
+		return std::distance(begin, *this);
+	}
+
+private:
+	void check() const
+	{
+		if(node == h) throw std::out_of_range("This iterator is out of range!");
+	}
+
+	static const Node* cast(const ListNodeBase* n) noexcept
+	{
+		return static_cast<const Node*>(n);
+	}
+
+private:
+	const Node* node;
+	const ListNodeBase* const h;
 };
 
 template<typename K, typename V>
@@ -366,3 +479,5 @@ std::size_t LinkMap<K, V>::indexOf(Key&& key) const
 	if(pos == m.cend()) throw std::exception();
 	return ListIter{&pos->second, &self.h}.index();
 }
+
+#include <Utility/MacrosUndef.h>

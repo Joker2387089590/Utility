@@ -1,6 +1,7 @@
 #pragma once
 #include <variant>
 #include "CallableTrait.h"
+#include "Macros.h"
 
 namespace Variants::Detail
 {
@@ -27,30 +28,82 @@ public:
 		return ((std::holds_alternative<Ts>(self()) || ...) || false);
 	}
 
+public: // visit
 	template<typename... Fs>
 	constexpr decltype(auto) visit(Fs&&... fs)
     {
-        return std::visit(Visitor{std::forward<Fs>(fs)...}, self());
+		return std::visit(Visitor{fwd(fs)...}, self());
 	}
 
 	template<typename... Fs>
 	constexpr decltype(auto) visit(Fs&&... fs) const
     {
-        return std::visit(Visitor{std::forward<Fs>(fs)...}, self());
+		return std::visit(Visitor{fwd(fs)...}, self());
     }
 
+public: // visitTo
 	template<typename T, typename... Fs>
-	constexpr decltype(auto) visitTo(Fs&&... fs)
+	[[nodiscard]] constexpr decltype(auto) visitTo(Fs&&... fs)
 	{
 		using Callables::returnAs;
-		return std::visit(Visitor{(std::forward<Fs>(fs) | returnAs<T>)...}, self());
+		return std::visit(Visitor{(fwd(fs) | returnAs<T>)...}, self());
 	}
 
 	template<typename T, typename... Fs>
-	constexpr decltype(auto) visitTo(Fs&&... fs) const
+	[[nodiscard]] constexpr decltype(auto) visitTo(Fs&&... fs) const
 	{
 		using Callables::returnAs;
-		return std::visit(Visitor{(std::forward<Fs>(fs) | returnAs<T>)...}, self());
+		return std::visit(Visitor{(fwd(fs) | returnAs<T>)...}, self());
+	}
+
+public: // select
+	template<typename... Ts, typename Fs, typename... Fo>
+	constexpr decltype(auto) select(Fs&& selects, Fo&&... others)
+	{
+		using Callables::argAs;
+		return std::visit(Visitor{fwd(selects) | argAs<Ts&>..., fwd(others)...}, self());
+	}
+
+	template<typename... Ts, typename Fs, typename... Fo>
+	constexpr decltype(auto) select(Fs&& selects, Fo&&... others) const
+	{
+		using Callables::argAs;
+		return std::visit(Visitor{fwd(selects) | argAs<Ts&>..., fwd(others)...}, self());
+	}
+
+public: // filter
+	// { C<T>::value } -> bool
+	template<template<typename> typename C, typename Fs, typename... Fo>
+	constexpr decltype(auto) filter(Fs&& selects, Fo&&... others)
+	{
+		using Tv = typename Types::TList<Vs...>::template RemoveNot<C>;
+		return filterHelper(Tv{}, fwd(selects), fwd(others)...);
+	}
+
+	template<template<typename> typename C, typename Fs, typename... Fo>
+	constexpr decltype(auto) filter(Fs&& selects, Fo&&... others) const
+	{
+		using Tv = typename Types::TList<Vs...>::template RemoveNot<C>;
+		return filterHelper(Tv{}, fwd(selects), fwd(others)...);
+	}
+
+private:
+	template<typename... Tv, typename Fs, typename... Fo>
+	constexpr decltype(auto) filterHelper(Types::TList<Tv...>,
+										  Fs&& selects,
+										  Fo&&... others)
+	{
+		using Callables::argAs;
+		return std::visit(Visitor{fwd(selects) | argAs<Tv&>..., fwd(others)...}, self());
+	}
+
+	template<typename... Tv, typename Fs, typename... Fo>
+	constexpr decltype(auto) filterHelper(Types::TList<Tv...>,
+										  Fs&& selects,
+										  Fo&&... others) const
+	{
+		using Callables::argAs;
+		return std::visit(Visitor{fwd(selects) | argAs<Tv&>..., fwd(others)...}, self());
 	}
 
 private:
@@ -78,3 +131,5 @@ namespace Variants
 using Detail::Visitor;
 using Detail::Variant;
 }
+
+#include "MacrosUndef.h"

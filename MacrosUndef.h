@@ -1,0 +1,2 @@
+#undef fwd
+#undef DefaultClass

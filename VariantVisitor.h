@@ -103,7 +103,7 @@ private:
 										  Fo&&... others) const
 	{
 		using Callables::argAs;
-		return std::visit(Visitor{fwd(selects) | argAs<Tv&>..., fwd(others)...}, self());
+		return std::visit(Visitor{fwd(selects) | argAs<const Tv&>..., fwd(others)...}, self());
 	}
 
 private:

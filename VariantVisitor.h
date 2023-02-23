@@ -106,6 +106,32 @@ private:
 		return std::visit(Visitor{fwd(selects) | argAs<const Tv&>..., fwd(others)...}, self());
 	}
 
+public:
+	friend bool operator==(const UniqueVariant& a, const UniqueVariant& b)
+	{
+		return a.self() == b.self();
+	}
+	friend bool operator!=(const UniqueVariant& a, const UniqueVariant& b)
+	{
+		return a.self() != b.self();
+	}
+	friend bool operator> (const UniqueVariant& a, const UniqueVariant& b)
+	{
+		return a.self() >  b.self();
+	}
+	friend bool operator<=(const UniqueVariant& a, const UniqueVariant& b)
+	{
+		return a.self() <= b.self();
+	}
+	friend bool operator< (const UniqueVariant& a, const UniqueVariant& b)
+	{
+		return a.self() <  b.self();
+	}
+	friend bool operator>=(const UniqueVariant& a, const UniqueVariant& b)
+	{
+		return a.self() >= b.self();
+	}
+
 private:
     Base& self() { return *this; }
     const Base& self() const { return *this; }

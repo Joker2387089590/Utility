@@ -107,34 +107,34 @@ private:
 	}
 
 public:
-	friend bool operator==(const UniqueVariant& a, const UniqueVariant& b)
+	constexpr friend bool operator==(const UniqueVariant& a, const UniqueVariant& b)
 	{
 		return a.self() == b.self();
 	}
-	friend bool operator!=(const UniqueVariant& a, const UniqueVariant& b)
+	constexpr friend bool operator!=(const UniqueVariant& a, const UniqueVariant& b)
 	{
 		return a.self() != b.self();
 	}
-	friend bool operator> (const UniqueVariant& a, const UniqueVariant& b)
+	constexpr friend bool operator> (const UniqueVariant& a, const UniqueVariant& b)
 	{
 		return a.self() >  b.self();
 	}
-	friend bool operator<=(const UniqueVariant& a, const UniqueVariant& b)
+	constexpr friend bool operator<=(const UniqueVariant& a, const UniqueVariant& b)
 	{
 		return a.self() <= b.self();
 	}
-	friend bool operator< (const UniqueVariant& a, const UniqueVariant& b)
+	constexpr friend bool operator< (const UniqueVariant& a, const UniqueVariant& b)
 	{
 		return a.self() <  b.self();
 	}
-	friend bool operator>=(const UniqueVariant& a, const UniqueVariant& b)
+	constexpr friend bool operator>=(const UniqueVariant& a, const UniqueVariant& b)
 	{
 		return a.self() >= b.self();
 	}
 
 private:
-    Base& self() { return *this; }
-    const Base& self() const { return *this; }
+	constexpr Base& self() { return *this; }
+	constexpr const Base& self() const { return *this; }
 };
 
 template<typename... Ts>

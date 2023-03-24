@@ -10,6 +10,12 @@ struct Cleanup
     Cleanup(Fi&& f) : f(std::forward<Fi>(f)), doClean(true) {}
     ~Cleanup() { if(doClean) f(); }
 
+	Cleanup(Cleanup&&) = default;
+	Cleanup& operator=(Cleanup&&) & = default;
+
+	Cleanup(const Cleanup&) = delete;
+	Cleanup& operator=(const Cleanup&) & = delete;
+
     F f;
     bool doClean;
 };

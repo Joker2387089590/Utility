@@ -10,7 +10,6 @@
 
 #if !defined(EASY_FMT_NO_QT) &&  __has_include(<QString>)
 #include <QString>
-#include <QDebug>
 #else
 #define EASY_FMT_NO_QT
 #endif
@@ -51,11 +50,17 @@ inline namespace Literals
     };
 }
 
+/// On Windows, the stdout and stderr is printed by conhost.exe, 
+/// which is the backend of cmd.exe, and it doesn't recognize the ANSI color escape.
+/// However fmt use ANSI color escape to implement colorful terminal output.
+/// We can modify the default behavious of conhost by setting Windows Register:
+/// in `HKCU\Console`, add DWORD `VirtualTerminalLevel` as 1
+/// Or running command below by Powershell as Admin:
+/// `Set-ItemProperty HKCU:\Console VirtualTerminalLevel -Type DWORD 1`
+
 inline auto operator""_print(const char* str, std::size_t size)
 {
 	return [f = std::string_view(str, size)](auto&&... args) {
-//        qDebug() <<
-//            fmt::vformat(f, fmt::make_format_args(fwd(args)...)).c_str();
 		fmt::print(
 #ifndef EASY_FMT_NO_COLOR
 			fg(fmt::color::aqua),
@@ -68,8 +73,6 @@ inline auto operator""_print(const char* str, std::size_t size)
 inline auto operator""_err(const char* str, std::size_t size)
 {
     return [f = std::string_view(str, size)](auto&&... args) {
-//        qCritical() <<
-//            fmt::vformat(f, fmt::make_format_args(fwd(args)...)).c_str();
 		fmt::print(stderr,
 #ifndef EASY_FMT_NO_COLOR
 				   fg(fmt::color::crimson),

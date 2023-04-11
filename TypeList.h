@@ -187,7 +187,7 @@ template<typename... Ts>
 struct TList
 {
 	constexpr TList() noexcept = default;
-	template<typename... Ti> explicit constexpr TList(Ti&&...) noexcept : TList() {}
+	template<typename... Ti> explicit constexpr TList(Ti...) noexcept : TList() {}
 
 	static constexpr std::size_t size() { return sizeof...(Ts); }
 

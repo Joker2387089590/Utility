@@ -211,6 +211,12 @@ struct Visitor : FuncPtrWrapper<Vs>::type...
 
 template<typename... Vi>
 Visitor(Vi&&...) -> Visitor<std::remove_pointer_t<std::decay_t<Vi>>...>;
+
+template<typename R, typename T, typename... Args>
+auto bind(T* obj, R(std::decay_t<T>::*f)(Args...))
+{
+	return [obj, f](Args... args) { return (obj->*f)(std::move(args)...); };
+}
 }
 
 namespace Callables
@@ -234,4 +240,5 @@ using cpo::argAs;
 using Detail::typedLambda;
 
 using Detail::Visitor;
+using Detail::bind;
 }

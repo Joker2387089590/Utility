@@ -38,4 +38,6 @@ struct NumRange
     T lower;
     T upper;
 };
+
+inline constexpr double inf = std::numeric_limits<double>::infinity();
 }

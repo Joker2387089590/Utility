@@ -1,5 +1,16 @@
 #pragma once
 #include <variant>
+#ifndef VARIANTS_USE_EXPECTED
+#	if __cpp_lib_expected >= 202202L
+#		include <expected>
+#		define VARIANTS_USE_EXPECTED 1
+#	elif __has_include(<boost/outcome.hpp>)
+#		include <boost/outcome.hpp>
+#		define VARIANTS_USE_EXPECTED 1
+#	else
+#		define VARIANTS_USE_EXPECTED 0
+#	endif
+#endif
 #include "CallableTrait.h"
 #include "Macros.h"
 

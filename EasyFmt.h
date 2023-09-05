@@ -86,7 +86,7 @@ inline auto operator""_print(const char* str, std::size_t size)
 			fg(fmt::color::aqua),
 #endif
 			f, fwd(args)...);
-		fmt::print(stdoutTarget(), "\n");
+		fmt::print("\n");
 	};
 }
 

@@ -9,9 +9,9 @@
 #include <fmt/color.h>
 
 #if !defined(EASY_FMT_NO_QT) &&  __has_include(<QString>)
-#include <QString>
+#	include <QString>
 #else
-#define EASY_FMT_NO_QT
+#	define EASY_FMT_NO_QT
 #endif
 
 #include "Macros.h"
@@ -20,13 +20,33 @@ namespace EasyFmts
 {
 inline namespace Literals
 {
+inline constexpr auto vformat = [](auto&& f, auto&&... args) {
+	try {
+		return fmt::vformat(fwd(f), fmt::make_format_args(fwd(args)...));
+	}
+	catch(const std::system_error&) {
+		throw;
+	}
+};
+
+inline constexpr auto print = []([[maybe_unused]] auto&&... args) -> void {
+#ifndef EASY_FMT_NO_CONSOLE
+	try {
+		fmt::print(fwd(args)...);
+	}
+	catch(const std::system_error&) {
+		throw;
+	}
+#endif
+};
+
 [[nodiscard]] inline auto operator""_fmt(const char* str, std::size_t size)
 {
     return [f = std::string_view(str, size)](auto&&... args) constexpr {
         if constexpr (sizeof...(args) == 0)
             return f;
         else
-			return fmt::vformat(f, fmt::make_format_args(fwd(args)...));
+			return vformat(f, fwd(args)...);
 	};
 }
 
@@ -36,7 +56,7 @@ inline namespace Literals
         if constexpr (sizeof...(args) == 0)
             return f;
         else
-            return fmt::vformat(f, fmt::make_format_args(fwd(args)...));
+			return vformat(f, fwd(args)...);
     };
 }
 
@@ -46,7 +66,7 @@ inline namespace Literals
         if constexpr (sizeof...(args) == 0)
             return f;
         else
-            return fmt::vformat(f, fmt::make_format_args(fwd(args)...));
+			return vformat(f, fwd(args)...);
     };
 }
 
@@ -61,23 +81,23 @@ inline namespace Literals
 inline auto operator""_print(const char* str, std::size_t size)
 {
 	return [f = std::string_view(str, size)](auto&&... args) {
-		fmt::print(
+		print(
 #ifndef EASY_FMT_NO_COLOR
 			fg(fmt::color::aqua),
 #endif
 			f, fwd(args)...);
-		fmt::print("\n");
+		fmt::print(stdoutTarget(), "\n");
 	};
 }
 
 inline auto operator""_err(const char* str, std::size_t size)
 {
     return [f = std::string_view(str, size)](auto&&... args) {
-		fmt::print(stderr,
+		print(stderr,
 #ifndef EASY_FMT_NO_COLOR
-				   fg(fmt::color::crimson),
+			  fg(fmt::color::crimson),
 #endif
-				   f, fwd(args)...);
+			  f, fwd(args)...);
 		fmt::print(stderr, "\n");
 	};
 }
@@ -101,12 +121,12 @@ inline auto operator""_qfmt(const char* str, std::size_t size)
     };
 }
 #endif
-}
+} // namespace Literals
 
 #ifndef ARG
-#define ARG(v) fmt::arg(#v, EasyFmts::castEnum(v))
+#   define ARG(v) fmt::arg(#v, EasyFmts::castEnum(v))
 #else
-#error duplicate macro 'ARG' defined!
+#   error duplicate macro 'ARG' defined!
 #endif
 
 template<typename T>
@@ -166,8 +186,7 @@ inline auto fjson(std::string_view f, Args&&... args)
 	if(pre < f.size()) r.append(f.substr(pre));
 	return fmt::vformat(r, fmt::make_format_args(fwd(args)...));
 }
-
-}
+} // namespace EasyFmts
 
 #ifndef EASY_FMT_NO_QT
 

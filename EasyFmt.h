@@ -86,7 +86,7 @@ inline auto operator""_print(const char* str, std::size_t size)
 			fg(fmt::color::aqua),
 #endif
 			f, fwd(args)...);
-		fmt::print("\n");
+		print("\n");
 	};
 }
 
@@ -98,7 +98,7 @@ inline auto operator""_err(const char* str, std::size_t size)
 			  fg(fmt::color::crimson),
 #endif
 			  f, fwd(args)...);
-		fmt::print(stderr, "\n");
+		print(stderr, "\n");
 	};
 }
 

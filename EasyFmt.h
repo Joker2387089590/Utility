@@ -4,6 +4,7 @@
 
 #include <vector>
 #include <stdexcept>
+#include <string_view>
 #include <fmt/format.h>
 #include <fmt/xchar.h>
 #include <fmt/color.h>
@@ -22,14 +23,15 @@ inline namespace Literals
 {
 inline constexpr auto vformat = [](auto&& f, auto&&... args) {
 	try {
-		return fmt::vformat(fwd(f), fmt::make_format_args(fwd(args)...));
+		return fmt::vformat(fwd(f), fmt::make_format_args(args...));
 	}
 	catch(const std::system_error&) {
 		throw;
 	}
 };
 
-inline constexpr auto print = []([[maybe_unused]] auto&&... args) -> void {
+inline constexpr auto print = [](auto&&... args) -> void {
+	(void)(args, ...);
 #ifndef EASY_FMT_NO_CONSOLE
 	try {
 		fmt::print(fwd(args)...);

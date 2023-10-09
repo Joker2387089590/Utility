@@ -256,7 +256,7 @@ struct TList
 	template<typename Tx>
 	using Remove = RemoveIf<IsSameTrait<Tx>::template IsSame>;
 
-	static constexpr std::size_t npos = -1;
+	static constexpr auto npos = static_cast<std::size_t>(-1);
 
 	// TList<X, 'T', Y, T, Z> => 1
 	// TList<X, Y, Z> => npos
@@ -311,7 +311,7 @@ struct TList<>
 
 	static constexpr bool empty() { return true; }
 
-	static constexpr std::size_t npos = -1;
+	static constexpr auto npos = static_cast<std::size_t>(-1);
 
 	template<typename>
 	static constexpr std::size_t find() { return npos; }

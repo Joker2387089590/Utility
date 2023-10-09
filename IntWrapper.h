@@ -138,7 +138,7 @@ union JointInt
 	struct {
 		Half low;
 		Half high;
-	};
+	} halfs;
 };
 }
 

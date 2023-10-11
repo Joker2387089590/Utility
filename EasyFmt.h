@@ -31,7 +31,6 @@ inline constexpr auto vformat = [](auto&& f, auto&&... args) {
 };
 
 inline constexpr auto print = [](auto&&... args) -> void {
-	(void)(args, ...);
 #ifndef EASY_FMT_NO_CONSOLE
 	try {
 		fmt::print(fwd(args)...);

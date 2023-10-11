@@ -30,16 +30,18 @@ inline constexpr auto vformat = [](auto&& f, auto&&... args) {
 	}
 };
 
-inline constexpr auto print = [](auto&&... args) -> void {
 #ifndef EASY_FMT_NO_CONSOLE
+inline constexpr auto print = [](auto&&... args) -> void {
 	try {
 		fmt::print(fwd(args)...);
 	}
 	catch(const std::system_error&) {
 		throw;
 	}
-#endif
 };
+#else
+inline constexpr auto print = [](auto&&...) {};
+#endif
 
 [[nodiscard]] inline auto operator""_fmt(const char* str, std::size_t size)
 {

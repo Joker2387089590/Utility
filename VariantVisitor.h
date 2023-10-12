@@ -24,6 +24,7 @@ class UniqueVariant : public std::variant<Vs...>
 	using Base = std::variant<Vs...>;
 public:
 	using Base::Base;
+	DefaultClass(UniqueVariant);
 
     static constexpr std::size_t typeCount() { return sizeof...(Vs); }
 

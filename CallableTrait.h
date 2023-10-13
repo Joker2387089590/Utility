@@ -228,6 +228,24 @@ auto bind(T* obj, R(std::decay_t<T>::*f)(Args...))
 {
 	return [obj, f](auto&&... args) { return (obj->*f)(std::forward<Args>(args)...); };
 }
+
+template<auto f, typename T = Callable<decltype(f)>>
+struct UnbindImpl;
+
+template<auto f, typename R, typename T, typename... Args>
+struct UnbindImpl<f, Callable<R(T::*)(Args...)>>
+{
+	static R impl(T* obj, Args... args) { return (obj->*f)(std::move(args...)); }
+};
+
+template<auto f, typename R, typename T, typename... Args>
+struct UnbindImpl<f, Callable<R(T::*const)(Args...)>>
+{
+	static R impl(const T* obj, Args... args) { return (obj->*f)(std::move(args...)); }
+};
+
+template<auto memberFunc>
+constexpr auto unbind = &UnbindImpl<memberFunc>::impl;
 }
 
 namespace Callables
@@ -252,6 +270,7 @@ using Detail::typedLambda;
 
 using Detail::Visitor;
 using Detail::bind;
+using Detail::unbind;
 }
 
 #include <Utility/MacrosUndef.h>

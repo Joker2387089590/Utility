@@ -19,17 +19,25 @@ namespace Variants::Detail
 using Callables::Visitor;
 
 template<typename... Vs>
-class UniqueVariant : public std::variant<Vs...>
+class VariantImpl : public std::variant<Vs...>
 {
+	static_assert(sizeof...(Vs) > 0);
 	using Base = std::variant<Vs...>;
+	using TList = Types::TList<Vs...>;
+
 public:
 	using Base::Base;
-	DefaultClass(UniqueVariant);
+	DefaultClass(VariantImpl);
+
+	template<typename T> static constexpr auto indexOf = TList::template find<T>();
 
     static constexpr std::size_t typeCount() { return sizeof...(Vs); }
 
 	template<typename T> constexpr decltype(auto) as()       { return std::get<T>(self()); }
 	template<typename T> constexpr decltype(auto) as() const { return std::get<T>(self()); }
+
+	template<typename T> explicit constexpr operator T&() { return as<T>(); }
+	template<typename T> explicit constexpr operator const T&() const { return as<T>(); }
 
 	template<typename T> constexpr auto* tryAs() noexcept       { return std::get_if<T>(&self()); }
 	template<typename T> constexpr auto* tryAs() const noexcept { return std::get_if<T>(&self()); }
@@ -88,14 +96,14 @@ public: // filter
 	template<template<typename> typename C, typename Fs, typename... Fo>
 	constexpr decltype(auto) filter(Fs&& selects, Fo&&... others)
 	{
-		using Tv = typename Types::TList<Vs...>::template RemoveNot<C>;
+		using Tv = typename TList::template RemoveNot<C>;
 		return filterHelper(Tv{}, fwd(selects), fwd(others)...);
 	}
 
 	template<template<typename> typename C, typename Fs, typename... Fo>
 	constexpr decltype(auto) filter(Fs&& selects, Fo&&... others) const
 	{
-		using Tv = typename Types::TList<Vs...>::template RemoveNot<C>;
+		using Tv = typename TList::template RemoveNot<C>;
 		return filterHelper(Tv{}, fwd(selects), fwd(others)...);
 	}
 
@@ -119,27 +127,27 @@ private:
 	}
 
 public:
-	constexpr friend bool operator==(const UniqueVariant& a, const UniqueVariant& b)
+	constexpr friend bool operator==(const VariantImpl& a, const VariantImpl& b)
 	{
 		return a.self() == b.self();
 	}
-	constexpr friend bool operator!=(const UniqueVariant& a, const UniqueVariant& b)
+	constexpr friend bool operator!=(const VariantImpl& a, const VariantImpl& b)
 	{
 		return a.self() != b.self();
 	}
-	constexpr friend bool operator> (const UniqueVariant& a, const UniqueVariant& b)
+	constexpr friend bool operator> (const VariantImpl& a, const VariantImpl& b)
 	{
 		return a.self() >  b.self();
 	}
-	constexpr friend bool operator<=(const UniqueVariant& a, const UniqueVariant& b)
+	constexpr friend bool operator<=(const VariantImpl& a, const VariantImpl& b)
 	{
 		return a.self() <= b.self();
 	}
-	constexpr friend bool operator< (const UniqueVariant& a, const UniqueVariant& b)
+	constexpr friend bool operator< (const VariantImpl& a, const VariantImpl& b)
 	{
 		return a.self() <  b.self();
 	}
-	constexpr friend bool operator>=(const UniqueVariant& a, const UniqueVariant& b)
+	constexpr friend bool operator>=(const VariantImpl& a, const VariantImpl& b)
 	{
 		return a.self() >= b.self();
 	}
@@ -149,20 +157,15 @@ private:
 	constexpr const Base& self() const { return *this; }
 };
 
+template<> class VariantImpl<> { VariantImpl() = delete; };
+
 template<typename... Ts>
-struct TakeOneTrait
-{
-	using type = typename Types::TList<Ts...>::Unique::template Apply<UniqueVariant>;
-};
-
-template<>
-struct TakeOneTrait<>
-{
-	using type = UniqueVariant<std::monostate>;
-};
-
-template<typename... Ts> using Variant = typename TakeOneTrait<Ts...>::type;
-}
+using Variant = std::conditional_t<
+	sizeof...(Ts) == 0,
+	VariantImpl<std::monostate>,
+	typename Types::TList<Ts...>::Unique::template Apply<VariantImpl>
+>;
+} // namespace Variants::Detail
 
 namespace Variants
 {

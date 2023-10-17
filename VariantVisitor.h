@@ -50,27 +50,40 @@ public:
 
 public: // visit
 	template<typename... Fs>
-	constexpr decltype(auto) visit(Fs&&... fs)
+	constexpr decltype(auto) visit(Fs&&... fs) &
     {
 		return std::visit(Visitor{fwd(fs)...}, self());
 	}
 
 	template<typename... Fs>
-	constexpr decltype(auto) visit(Fs&&... fs) const
+	constexpr decltype(auto) visit(Fs&&... fs) const&
     {
 		return std::visit(Visitor{fwd(fs)...}, self());
     }
 
+	template<typename... Fs>
+	constexpr decltype(auto) visit(Fs&&... fs) &&
+	{
+		return std::visit(Visitor{fwd(fs)...}, self());
+	}
+
 public: // visitTo
 	template<typename T, typename... Fs>
-	[[nodiscard]] constexpr decltype(auto) visitTo(Fs&&... fs)
+	[[nodiscard]] constexpr decltype(auto) visitTo(Fs&&... fs) &
 	{
 		using Callables::returnAs;
 		return std::visit(Visitor{(fwd(fs) | returnAs<T>)...}, self());
 	}
 
 	template<typename T, typename... Fs>
-	[[nodiscard]] constexpr decltype(auto) visitTo(Fs&&... fs) const
+	[[nodiscard]] constexpr decltype(auto) visitTo(Fs&&... fs) const&
+	{
+		using Callables::returnAs;
+		return std::visit(Visitor{(fwd(fs) | returnAs<T>)...}, self());
+	}
+
+	template<typename T, typename... Fs>
+	[[nodiscard]] constexpr decltype(auto) visitTo(Fs&&... fs) &&
 	{
 		using Callables::returnAs;
 		return std::visit(Visitor{(fwd(fs) | returnAs<T>)...}, self());
@@ -153,8 +166,9 @@ public:
 	}
 
 private:
-	constexpr Base& self() { return *this; }
-	constexpr const Base& self() const { return *this; }
+	constexpr Base& self() & { return *this; }
+	constexpr const Base& self() const& { return *this; }
+	constexpr Base&& self() && { return std::move(*this); }
 };
 
 template<> class VariantImpl<> { VariantImpl() = delete; };

@@ -224,9 +224,15 @@ auto curry(F&& f, Args&&... args1)
 }
 
 template<typename R, typename T, typename... Args>
-auto bind(T* obj, R(std::decay_t<T>::*f)(Args...))
+auto bind(T* obj, R(std::decay_t<T>::* f)(Args...))
 {
-	return [obj, f](auto&&... args) { return (obj->*f)(std::forward<Args>(args)...); };
+	return [obj, f](Args... args) { return (obj->*f)(std::forward<Args>(args)...); };
+}
+
+template<typename R, typename T, typename... Args>
+auto bind(T* obj, R(std::decay_t<T>::* f)(Args...) const)
+{
+	return [obj, f](Args... args) { return (obj->*f)(std::forward<Args>(args)...); };
 }
 
 template<auto f, typename T = Callable<decltype(f)>>

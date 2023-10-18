@@ -6,6 +6,21 @@
 // 参考 https://github.com/microsoft/proxy
 namespace Proxys::Detail
 {
+/// forward declaration
+template<typename... Ds> class ProxyImpl;
+
+template<typename... Ds> class UniqueProxyImpl;
+
+template<template<typename...> typename P, typename F> struct FacadeTrait;
+
+template<typename F>
+using UniqueProxy = typename FacadeTrait<UniqueProxyImpl, F>::Proxys;
+
+template<typename F>
+using Proxy = typename FacadeTrait<ProxyImpl, F>::Proxys;
+
+/// dispatch
+
 template<typename F>
 struct Dispatch : public Dispatch<typename Callables::FunctorInvoker<F>> {};
 
@@ -15,6 +30,8 @@ struct Dispatch<R(As...)> : Callables::Callable<R(As...)> {};
 auto isDispatch(...) -> std::false_type;
 template<typename F> auto isDispatch(const Dispatch<F>&) -> std::true_type;
 template<typename T> using IsDispatch = decltype(isDispatch(std::declval<T>()));
+
+/// facade
 
 template<typename T, typename D, typename Invoker> struct Wrap;
 
@@ -54,8 +71,6 @@ struct Facade
 	using VTable = std::tuple<typename Unwrap<Ds>::type...>;
 };
 
-template<template<typename...> typename P, typename F> struct FacadeTrait;
-
 auto toFacade(...) -> void;
 template<typename... Ds> auto toFacade(const Facade<Ds...>&) -> Facade<Ds...>;
 
@@ -65,7 +80,7 @@ struct FacadeTrait : public FacadeTrait<P, decltype(toFacade(std::declval<F>()))
 template<template<typename...> typename P, typename... Ds>
 struct FacadeTrait<P, Facade<Ds...>> { using Proxys = P<Ds...>; };
 
-template<typename... Ds> class ProxyImpl;
+/// unique proxy impl
 
 template<typename... Ds>
 class UniqueProxyImpl
@@ -74,9 +89,8 @@ class UniqueProxyImpl
 	friend class ProxyImpl<Ds...>;
 
 	template<typename T>
-	static constexpr auto* defaultDeleter = [](void* obj) -> void {
-		delete static_cast<T*>(obj);
-	};
+	static constexpr void(*defaultDeleter)(void*) =
+		[](void* obj) -> void { delete static_cast<T*>(obj); };
 
 public:
 	UniqueProxyImpl() noexcept : object(nullptr), deleter(nullptr), vptr(nullptr) {}
@@ -129,6 +143,8 @@ private:
 	void (*deleter)(void*);
 };
 
+/// proxy impl
+
 template<typename... Ds>
 class ProxyImpl
 {
@@ -167,12 +183,6 @@ private:
 	void* object;
 	const typename F::VTable* vptr;
 };
-
-template<typename F>
-using Proxy = typename FacadeTrait<ProxyImpl, F>::Proxys;
-
-template<typename F>
-using UniqueProxy = typename FacadeTrait<UniqueProxyImpl, F>::Proxys;
 } // namespace Interfaces::Detail
 
 namespace Proxys
@@ -181,6 +191,6 @@ using Detail::Dispatch;
 using Detail::Facade;
 using Detail::Proxy;
 using Detail::UniqueProxy;
-} // namespace Interfaces
+} // namespace
 
 #include <Utility/MacrosUndef.h>

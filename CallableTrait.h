@@ -17,84 +17,100 @@ struct IsFunctor<T, std::void_t<decltype(&T::operator())>> : std::true_type
 };
 
 template<typename T, bool b> struct SelectFunctor;
-template<typename T> struct SelectFunctor<T, false> {};
-template<typename T> struct SelectFunctor<T, true> { using type = typename IsFunctor<T>::type; };
+template<typename T>
+struct SelectFunctor<T, false> { using type = T; };
+template<typename T>
+struct SelectFunctor<T, true> { using type = typename IsFunctor<T>::type; };
 
 template<typename F>
 using FunctorType = typename SelectFunctor<F, IsFunctor<F>::value>::type;
 
-template<typename F>
-struct Callable : Callable<FunctorType<std::decay_t<F>>> {};
-
-template<typename R, typename... Args>
-struct Callable<R(Args...)> // C function
+template<typename T, typename R, typename... Args>
+struct CallableImpl
 {
+	using Class = T;
 	using Return = R;
-	using Class = void;
 	using Arguments = TList<Args...>;
 	using Invoker = R(Args...);
+
+	template<template<typename Rx, typename... Ax> typename E>
+	using Expand = E<R, Args...>;
+
+	template<template<typename Tx, typename Rx, typename... Ax> typename E>
+	using ExpandClass = E<T, R, Args...>;
 };
+
+template<typename F> struct CallableTrait;
+
+// functor(lambda) and fallback
+template<typename F>
+struct CallableTrait : CallableTrait<FunctorType<std::decay_t<F>>> {};
 
 // C function pointer
 template<typename R, typename... Args>
-struct Callable<R(*)(Args...)> : Callable<R(Args...)> {};
-
-// C function ref
-template<typename R, typename... Args>
-struct Callable<R(&)(Args...)> : Callable<R(Args...)> {};
+struct CallableTrait<R(*)(Args...)>
+{
+	using type = CallableImpl<void, R, Args...>;
+};
 
 // member function
 template<typename R, typename T, typename... Args>
-struct Callable<R(T::*)(Args...)> : Callable<R(Args...)>
+struct CallableTrait<R(T::*)(Args...)>
 {
-	using Class = T;
+	using type = CallableImpl<T, R, Args...>;
 };
 
 // const member function
 template<typename R, typename T, typename... Args>
-struct Callable<R(T::*)(Args...) const> : Callable<R(Args...)>
+struct CallableTrait<R(T::*)(Args...) const>
 {
-	using Class = const T;
+	using type = CallableImpl<const T, R, Args...>;
 };
 
 // left-ref member function
 template<typename R, typename T, typename... Args>
-struct Callable<R(T::*)(Args...) &> : Callable<R(Args...)>
+struct CallableTrait<R(T::*)(Args...) &>
 {
-	using Class = T&;
+	using type = CallableImpl<T&, R, Args...>;
 };
 
 // right-ref member function
 template<typename R, typename T, typename... Args>
-struct Callable<R(T::*)(Args...) &&> : Callable<R(Args...)>
+struct CallableTrait<R(T::*)(Args...) &&>
 {
-	using Class = T&&;
+	using type = CallableImpl<T&&, R, Args...>;
 };
 
 // const-left-ref member function
 template<typename R, typename T, typename... Args>
-struct Callable<R(T::*)(Args...) const&> : Callable<R(Args...)>
+struct CallableTrait<R(T::*)(Args...) const&>
 {
-	using Class = const T&;
+	using type = CallableImpl<const T&, R, Args...>;
 };
 
 // const-right-ref member function
 template<typename R, typename T, typename... Args>
-struct Callable<R(T::*)(Args...) const&&> : Callable<R(Args...)>
+struct CallableTrait<R(T::*)(Args...) const&&>
 {
-	using Class = const T&&;
+	using type = CallableImpl<const T&&, R, Args...>;
 };
 
 // std::function
 template<typename F>
-struct Callable<std::function<F>> : Callable<F> {};
+struct CallableTrait<std::function<F>> : CallableTrait<F> {};
+
+template<typename F>
+using Callable = typename CallableTrait<F>::type;
+
+template<auto f>
+using CallableOf = Callable<decltype(f)>;
 
 template<typename F> using FunctorReturn    = typename Callable<F>::Return;
 template<typename F> using FunctorClass     = typename Callable<F>::Class;
 template<typename F> using FunctorArguments = typename Callable<F>::Arguments;
 template<typename F> using FunctorInvoker   = typename Callable<F>::Invoker;
 
-template<auto f> using FunctorInfo = Callable<decltype(f)>;
+template<auto f> using FunctorInfo = CallableOf<f>;
 template<auto f> using ReturnOf    = typename FunctorInfo<f>::Return;
 template<auto f> using ClassOf     = typename FunctorInfo<f>::Class;
 template<auto f> using ArgumentsOf = typename FunctorInfo<f>::Arguments;
@@ -214,49 +230,79 @@ template<typename... Vi>
 Visitor(Vi&&...) -> Visitor<std::remove_pointer_t<std::decay_t<Vi>>...>;
 
 template<typename F, typename... Args>
-auto curry(F&& f, Args&&... args1)
+constexpr auto curry(F&& f, Args&&... args1)
 {
-	return [f = fwd(f), args1 = std::make_tuple(fwd(args1)...)](auto&&... args2) mutable {
+	// 参考 https://stackoverflow.com/a/49902823
+	return [f = fwd(f), args1 = std::make_tuple(std::forward<Args>(args1)...)](auto&&... args2) mutable {
 		return std::apply([&](auto&&... args1) {
 			return std::invoke(fwd(f), std::forward<Args>(args1)..., fwd(args2)...);
 		}, std::move(args1));
 	};
 }
 
-template<typename R, typename T, typename... Args>
-auto bind(T* obj, R(std::decay_t<T>::* f)(Args...))
+template<typename T, typename R, typename... As>
+struct BindImpl
 {
-	return [obj, f](Args... args) { return (obj->*f)(std::forward<Args>(args)...); };
-}
+	template<auto f, typename Tr>
+	struct ZeroCostFunc
+	{
+		constexpr R operator()(As... args) const
+		{
+			return (obj->*f)(std::forward<As>(args)...);
+		}
+		Tr* const obj;
+	};
 
-template<typename R, typename T, typename... Args>
-auto bind(T* obj, R(std::decay_t<T>::* f)(Args...) const)
-{
-	return [obj, f](Args... args) { return (obj->*f)(std::forward<Args>(args)...); };
-}
-
-template<auto f, typename T = Callable<decltype(f)>>
-struct UnbindImpl;
-
-template<auto f, typename R, typename T, typename... Args>
-struct UnbindImpl<f, Callable<R(T::*)(Args...)>>
-{
-	static R impl(T* obj, Args... args) { return (obj->*f)(std::move(args...)); }
+	template<typename Tr>
+	struct Func
+	{
+		constexpr R operator()(As... args) const
+		{
+			return (obj->*f)(std::forward<As>(args)...);
+		}
+		Tr* const obj;
+		R(T::* const f)(As...);
+	};
 };
 
-template<auto f, typename R, typename T, typename... Args>
-struct UnbindImpl<f, Callable<R(T::*const)(Args...)>>
+template<auto f, typename T>
+constexpr auto bind(T* obj) noexcept
 {
-	static R impl(const T* obj, Args... args) { return (obj->*f)(std::move(args...)); }
+	using Impl = typename CallableOf<f>::template ExpandClass<BindImpl>;
+	using Func = typename Impl::template ZeroCostFunc<f, T>;
+	return Func{obj};
+}
+
+template<typename T, typename F>
+constexpr auto bind(T* obj, F f) noexcept
+{
+	using Impl = typename CallableOf<f>::template ExpandClass<BindImpl>;
+	using Func = typename Impl::template Func<T>;
+	return Func{obj, f};
+}
+
+template<typename T, typename R, typename... Args>
+struct UnbindImpl
+{
+	template<auto f>
+	static constexpr R impl(T* obj, Args... args)
+	{
+		return (obj->*f)(std::forward<Args>(args)...);
+	}
 };
 
 template<auto memberFunc>
-constexpr auto unbind = &UnbindImpl<memberFunc>::impl;
+constexpr auto unbind =
+	CallableOf<memberFunc>::
+	template ExpandClass<UnbindImpl>::
+	template impl<memberFunc>;
 }
 
 namespace Callables
 {
 using Detail::Callable;
+using Detail::CallableOf;
+
 using Detail::FunctorReturn;
 using Detail::FunctorClass;
 using Detail::FunctorArguments;

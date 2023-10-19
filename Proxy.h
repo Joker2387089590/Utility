@@ -21,17 +21,20 @@ using Proxy = typename FacadeTrait<ProxyImpl, F>::Proxys;
 
 /// dispatch
 
-template<typename F>
-struct Dispatch : public Dispatch<typename Callables::FunctorInvoker<F>> {};
+template<typename F> struct Dispatch;
 
 template<typename R, typename... As>
-struct Dispatch<R(As...)> : Callables::Callable<R(As...)> {};
+struct Dispatch<R(As...)>
+{
+	using Call = Callables::Callable<R(As...)>;
+};
 
 auto isDispatch(...) -> std::false_type;
 template<typename F> auto isDispatch(const Dispatch<F>&) -> std::true_type;
 template<typename T> using IsDispatch = decltype(isDispatch(std::declval<T>()));
 
 /// facade
+/// TODO: add conversion from Facade<A, B, C, D> to Facade<A, C>
 
 template<typename T, typename D, typename Invoker> struct Wrap;
 
@@ -40,12 +43,12 @@ struct Wrap<T, D, R(As...)>
 {
 	static constexpr R impl(void* object, As... args)
 	{
-		return std::invoke(D{}, static_cast<T*>(object), std::forward<As>(args)...);
+		return std::invoke(D{}, *static_cast<T*>(object), std::forward<As>(args)...);
 	}
 };
 
 template<typename T, typename D>
-constexpr auto* wrap = Wrap<T, D, typename D::Invoker>::impl;
+constexpr auto* wrap = Wrap<T, D, typename D::Call::Invoker>::impl;
 
 template<typename D>
 struct Unwrap
@@ -54,9 +57,8 @@ struct Unwrap
 	struct Impl { using type = R(*)(void*, As...); };
 
 	using type =
-		typename D::Arguments::
-		template Prepend<typename D::Return>::
-		template Apply<Impl>::
+		typename D::Call::
+		template Expand<Impl>::
 		type;
 };
 
@@ -65,10 +67,10 @@ struct Facade
 {
 	static_assert(std::conjunction_v<IsDispatch<Ds>...>);
 
-	template<typename T>
-	inline static constexpr std::tuple vtable{ wrap<T, Ds>... };
-
 	using VTable = std::tuple<typename Unwrap<Ds>::type...>;
+
+	template<typename T>
+	inline static constexpr VTable vtable{ wrap<T, Ds>... };
 };
 
 auto toFacade(...) -> void;
@@ -93,7 +95,9 @@ class UniqueProxyImpl
 		[](void* obj) -> void { delete static_cast<T*>(obj); };
 
 public:
-	UniqueProxyImpl() noexcept : object(nullptr), deleter(nullptr), vptr(nullptr) {}
+	UniqueProxyImpl() noexcept : object(nullptr), vptr(nullptr), deleter(nullptr) {}
+
+	UniqueProxyImpl(std::nullptr_t) : UniqueProxyImpl() {}
 
 	UniqueProxyImpl(UniqueProxyImpl&& other) noexcept : UniqueProxyImpl()
 	{
@@ -103,12 +107,10 @@ public:
 	UniqueProxyImpl& operator=(UniqueProxyImpl&& other) & noexcept
 	{
 		std::swap(object, other.object);
-		std::swap(deleter, other.deleter);
 		std::swap(vptr, other.vptr);
+		std::swap(deleter, other.deleter);
+		return *this;
 	}
-
-	UniqueProxyImpl(const UniqueProxyImpl&) = delete;
-	UniqueProxyImpl& operator=(const UniqueProxyImpl&) & = delete;
 
 	template<typename T>
 	explicit UniqueProxyImpl(T* object) :
@@ -125,6 +127,9 @@ public:
 	{}
 
 	~UniqueProxyImpl() { deleter(object); }
+
+	UniqueProxyImpl(const UniqueProxyImpl&) = delete;
+	UniqueProxyImpl& operator=(const UniqueProxyImpl&) & = delete;
 
 public:
 	template<typename D, typename... As>
@@ -150,21 +155,34 @@ class ProxyImpl
 {
 	using F = Facade<Ds...>;
 public:
-	ProxyImpl() : object(nullptr), vptr(nullptr) {}
+	constexpr ProxyImpl() noexcept : object(nullptr), vptr(nullptr) {}
 
-	ProxyImpl(ProxyImpl&&) noexcept = default;
-	ProxyImpl& operator=(ProxyImpl&&) & noexcept = default;
-	ProxyImpl(const ProxyImpl&) = default;
-	ProxyImpl& operator=(const ProxyImpl&) & = default;
-	~ProxyImpl() noexcept = default;
+	constexpr ProxyImpl(std::nullptr_t) noexcept : ProxyImpl() {}
 
 	template<typename T>
-	ProxyImpl(T* object) :
+	constexpr ProxyImpl(T* object) noexcept :
 		object(object),
 		vptr(std::addressof(F::template vtable<T>))
 	{}
 
-	ProxyImpl(const UniqueProxyImpl<Ds...>& u) : object(u.object), vptr(u.vptr) {}
+	template<typename T>
+	constexpr ProxyImpl& operator=(T* object) & noexcept
+	{
+		this->object = object;
+		this->vptr = std::addressof(F::template vtable<T>);
+		return *this;
+	}
+
+	ProxyImpl(const UniqueProxyImpl<Ds...>& u) noexcept :
+		object(u.object),
+		vptr(u.vptr)
+	{}
+
+	constexpr ProxyImpl(ProxyImpl&&) noexcept = default;
+	constexpr ProxyImpl& operator=(ProxyImpl&&) & noexcept = default;
+	constexpr ProxyImpl(const ProxyImpl&) = default;
+	constexpr ProxyImpl& operator=(const ProxyImpl&) & = default;
+	~ProxyImpl() noexcept = default;
 
 public:
 	template<typename D, typename... As>
@@ -175,9 +193,10 @@ public:
 		return std::get<index>(*vptr)(object, std::forward<As>(args)...);
 	}
 
-	template<typename T> T* as() const noexcept { return static_cast<T*>(object); }
+	template<typename T>
+	constexpr T* as() const noexcept { return static_cast<T*>(object); }
 
-	operator bool() const noexcept { return !!object; }
+	constexpr operator bool() const noexcept { return !!object; }
 
 private:
 	void* object;

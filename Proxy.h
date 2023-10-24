@@ -99,19 +99,6 @@ public:
 
 	UniqueProxyImpl(std::nullptr_t) : UniqueProxyImpl() {}
 
-	UniqueProxyImpl(UniqueProxyImpl&& other) noexcept : UniqueProxyImpl()
-	{
-		(*this) = std::move(other);
-	}
-
-	UniqueProxyImpl& operator=(UniqueProxyImpl&& other) & noexcept
-	{
-		std::swap(object, other.object);
-		std::swap(vptr, other.vptr);
-		std::swap(deleter, other.deleter);
-		return *this;
-	}
-
 	template<typename T>
 	explicit UniqueProxyImpl(T* object) :
 		object(object),
@@ -126,7 +113,20 @@ public:
 		deleter(deleter)
 	{}
 
-	~UniqueProxyImpl() { deleter(object); }
+	~UniqueProxyImpl() { if(object) deleter(object); }
+
+	UniqueProxyImpl(UniqueProxyImpl&& other) noexcept : UniqueProxyImpl()
+	{
+		(*this) = std::move(other);
+	}
+
+	UniqueProxyImpl& operator=(UniqueProxyImpl&& other) & noexcept
+	{
+		std::swap(object, other.object);
+		std::swap(vptr, other.vptr);
+		std::swap(deleter, other.deleter);
+		return *this;
+	}
 
 	UniqueProxyImpl(const UniqueProxyImpl&) = delete;
 	UniqueProxyImpl& operator=(const UniqueProxyImpl&) & = delete;

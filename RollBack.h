@@ -4,18 +4,22 @@
 #include <functional>
 
 template<typename F>
-struct Cleanup
+class Cleanup
 {
+public:
     template<typename Fi>
     Cleanup(Fi&& f) : f(std::forward<Fi>(f)), doClean(true) {}
+
     ~Cleanup() { if(doClean) f(); }
 
 	Cleanup(Cleanup&&) = default;
 	Cleanup& operator=(Cleanup&&) & = default;
 
+	// 复制会导致多次 cleanup
 	Cleanup(const Cleanup&) = delete;
 	Cleanup& operator=(const Cleanup&) & = delete;
 
+public:
     F f;
     bool doClean;
 };

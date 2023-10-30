@@ -64,7 +64,7 @@ public: // visit
 	template<typename... Fs>
 	constexpr decltype(auto) visit(Fs&&... fs) &&
 	{
-		return std::visit(Visitor{fwd(fs)...}, self());
+		return std::visit(Visitor{fwd(fs)...}, static_cast<Base&&>(*this));
 	}
 
 public: // visitTo

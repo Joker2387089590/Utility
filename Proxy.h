@@ -131,6 +131,8 @@ public:
 	UniqueProxyImpl(const UniqueProxyImpl&) = delete;
 	UniqueProxyImpl& operator=(const UniqueProxyImpl&) & = delete;
 
+	constexpr operator bool() const noexcept { return !!object; }
+
 public:
 	template<typename D, typename... As>
 	decltype(auto) invoke(As&&... args) const

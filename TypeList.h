@@ -157,7 +157,7 @@ struct RemoveAtTrait
 	static auto indexFilter(std::index_sequence<us...>, std::index_sequence<i, is...>)
 	{
 		if constexpr (std::disjunction_v<std::bool_constant<rs == i>...>)
-			return indexFilter(std::index_sequence<us...>{}, std::index_sequence<is...>{});
+			return indexFilter(std::index_sequence<us...   >{}, std::index_sequence<is...>{});
 		else
 			return indexFilter(std::index_sequence<us..., i>{}, std::index_sequence<is...>{});
 	}
@@ -232,6 +232,8 @@ struct TList
 
 	// TList<T1, T1, T2, T3, T3> => TList<T1, T2, T3>
 	using Unique = typename UniqueTrait<TList<>, TList>::type;
+
+	inline static constexpr bool repeated = size() != Unique::size();
 
 	// TList<T1, T2>::Unite<TList<T2, T3>> => TList<T1, T2, T3>
 	template<typename... To>

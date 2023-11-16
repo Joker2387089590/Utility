@@ -1,12 +1,14 @@
 #pragma once
-#include <type_traits>
+#include <Utility/TypeList.h>
 #include <Utility/CallableTrait.h>
-#include <Utility/Macros.h>
 
 // 参考 https://github.com/microsoft/proxy
 namespace Proxys::Detail
 {
 /// forward declaration
+
+template<typename... Ds> struct Facade;
+
 template<typename... Ds> class ProxyImpl;
 
 template<typename... Ds> class UniqueProxyImpl;
@@ -34,7 +36,6 @@ template<typename F> auto isDispatch(const Dispatch<F>&) -> std::true_type;
 template<typename T> using IsDispatch = decltype(isDispatch(std::declval<T>()));
 
 /// facade
-/// TODO: add conversion from Facade<A, B, C, D> to Facade<A, C>
 
 template<typename T, typename D, typename Invoker> struct Wrap;
 
@@ -65,7 +66,9 @@ struct Unwrap
 template<typename... Ds>
 struct Facade
 {
-	static_assert(std::conjunction_v<IsDispatch<Ds>...>);
+	using DList = Types::TList<Ds...>;
+	static_assert(DList::template ifAll<IsDispatch>);
+	static_assert(!DList::repeated);
 
 	using VTable = std::tuple<typename Unwrap<Ds>::type...>;
 
@@ -82,80 +85,14 @@ struct FacadeTrait : public FacadeTrait<P, decltype(toFacade(std::declval<F>()))
 template<template<typename...> typename P, typename... Ds>
 struct FacadeTrait<P, Facade<Ds...>> { using Proxys = P<Ds...>; };
 
-/// unique proxy impl
-
-template<typename... Ds>
-class UniqueProxyImpl
-{
-	using F = Facade<Ds...>;
-	friend class ProxyImpl<Ds...>;
-
-	template<typename T>
-	static constexpr void(*defaultDeleter)(void*) =
-		[](void* obj) -> void { delete static_cast<T*>(obj); };
-
-public:
-	UniqueProxyImpl() noexcept : object(nullptr), vptr(nullptr), deleter(nullptr) {}
-
-	UniqueProxyImpl(std::nullptr_t) : UniqueProxyImpl() {}
-
-	template<typename T>
-	explicit UniqueProxyImpl(T* object) :
-		object(object),
-		vptr(std::addressof(F::template vtable<T>)),
-		deleter(defaultDeleter<T>)
-	{}
-
-	template<typename T>
-	UniqueProxyImpl(T* object, void (*deleter)(void*)) :
-		object(object),
-		vptr(std::addressof(F::template vtable<T>)),
-		deleter(deleter)
-	{}
-
-	~UniqueProxyImpl() { if(object) deleter(object); }
-
-	UniqueProxyImpl(UniqueProxyImpl&& other) noexcept : UniqueProxyImpl()
-	{
-		(*this) = std::move(other);
-	}
-
-	UniqueProxyImpl& operator=(UniqueProxyImpl&& other) & noexcept
-	{
-		std::swap(object, other.object);
-		std::swap(vptr, other.vptr);
-		std::swap(deleter, other.deleter);
-		return *this;
-	}
-
-	UniqueProxyImpl(const UniqueProxyImpl&) = delete;
-	UniqueProxyImpl& operator=(const UniqueProxyImpl&) & = delete;
-
-	constexpr operator bool() const noexcept { return !!object; }
-
-public:
-	template<typename D, typename... As>
-	decltype(auto) invoke(As&&... args) const
-	{
-		constexpr auto index = Types::TList<Ds...>::template find<D>();
-		static_assert(index != -1);
-		return std::get<index>(*vptr)(object, std::forward<As>(args)...);
-	}
-
-	template<typename T> T* as() const { return static_cast<T*>(object); }
-
-private:
-	void* object;
-	const typename F::VTable* vptr;
-	void (*deleter)(void*);
-};
-
 /// proxy impl
 
 template<typename... Ds>
 class ProxyImpl
 {
-	using F = Facade<Ds...>;
+	using Facades = Facade<Ds...>;
+	using VTable = const typename Facades::VTable;
+	template<typename... D> friend class UniqueProxyImpl;
 public:
 	constexpr ProxyImpl() noexcept : object(nullptr), vptr(nullptr) {}
 
@@ -164,22 +101,21 @@ public:
 	template<typename T>
 	constexpr ProxyImpl(T* object) noexcept :
 		object(object),
-		vptr(std::addressof(F::template vtable<T>))
+		vptr(std::addressof(Facades::template vtable<T>))
 	{}
 
 	template<typename T>
 	constexpr ProxyImpl& operator=(T* object) & noexcept
 	{
 		this->object = object;
-		this->vptr = std::addressof(F::template vtable<T>);
+		this->vptr = std::addressof(Facades::template vtable<T>);
 		return *this;
 	}
 
-	ProxyImpl(const UniqueProxyImpl<Ds...>& u) noexcept :
-		object(u.object),
-		vptr(u.vptr)
-	{}
+private:
+	constexpr ProxyImpl(void* object, VTable* vptr) : object(object), vptr(vptr) {}
 
+public:
 	constexpr ProxyImpl(ProxyImpl&&) noexcept = default;
 	constexpr ProxyImpl& operator=(ProxyImpl&&) & noexcept = default;
 	constexpr ProxyImpl(const ProxyImpl&) = default;
@@ -195,16 +131,68 @@ public:
 		return std::get<index>(*vptr)(object, std::forward<As>(args)...);
 	}
 
+	constexpr operator bool() const noexcept { return !!object; }
+
 	template<typename T>
 	constexpr T* as() const noexcept { return static_cast<T*>(object); }
 
-	constexpr operator bool() const noexcept { return !!object; }
-
 private:
 	void* object;
-	const typename F::VTable* vptr;
+	VTable* vptr;
 };
-} // namespace Interfaces::Detail
+
+/// unique proxy impl
+
+struct Destroy : Dispatch<void()>
+{
+	template<typename T> void operator()(T& obj) { delete &obj; }
+};
+
+template<typename... Ds>
+class UniqueProxyImpl : public ProxyImpl<Destroy, Ds...>
+{
+	using Base = ProxyImpl<Destroy, Ds...>;
+	template<typename... D> friend class UniqueProxyImpl;
+public:
+	constexpr UniqueProxyImpl() noexcept : Base() {}
+	constexpr UniqueProxyImpl(std::nullptr_t) noexcept : Base() {}
+
+public: // move only
+	UniqueProxyImpl(const UniqueProxyImpl&) = delete;
+	UniqueProxyImpl& operator=(const UniqueProxyImpl&) & = delete;
+
+	UniqueProxyImpl(UniqueProxyImpl&& other) noexcept : UniqueProxyImpl()
+	{
+		*this = std::move(other);
+	}
+
+	UniqueProxyImpl& operator=(UniqueProxyImpl&& other) & noexcept
+	{
+		std::swap(this->object, other.object);
+		std::swap(this->vptr, other.vptr);
+		return *this;
+	}
+
+	~UniqueProxyImpl() { if(this->object) this->template invoke<Destroy>(); }
+
+public: // non-trivial contructors
+	// add explicit
+	template<typename T>
+	explicit constexpr UniqueProxyImpl(T* object) : Base(object) {}
+
+	// the deleter cannot be created
+	template<typename... D>
+	UniqueProxyImpl(ProxyImpl<D...> proxy) = delete;
+
+public: // to normal proxy
+	operator ProxyImpl<Ds...>() const { return static_cast<const Base&>(*this); }
+
+public: // Base function
+	using Base::invoke;
+	using Base::operator bool;
+	using Base::as;
+};
+} // namespace Proxys::Detail
 
 namespace Proxys
 {
@@ -212,6 +200,4 @@ using Detail::Dispatch;
 using Detail::Facade;
 using Detail::Proxy;
 using Detail::UniqueProxy;
-} // namespace
-
-#include <Utility/MacrosUndef.h>
+}

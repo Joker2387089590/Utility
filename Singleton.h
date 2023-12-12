@@ -2,7 +2,7 @@
 #include <type_traits>
 #include <stdexcept>
 #include <mutex>
-#include <SpinLock.h>
+#include <Utility/SpinLock.h>
 
 #ifndef SINGLETON
 	// Aggressive interface to assess the singleton instance

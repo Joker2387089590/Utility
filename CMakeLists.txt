@@ -1,35 +1,60 @@
 cmake_minimum_required(VERSION 3.18)
 project(Utility LANGUAGES CXX)
 
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
-option(UTILITY_EASYFMT_NO_CONSOLE OFF)
-
 add_library(Utility INTERFACE)
-file(GLOB HEADERS ${PROJECT_SOURCE_DIR}/*.h)
-target_sources(Utility INTERFACE ${HEADERS})
-target_include_directories(Utility INTERFACE
-	${PROJECT_SOURCE_DIR}
-	${PROJECT_SOURCE_DIR}/..
+
+target_sources(Utility INTERFACE
+	Access.h
+	AnyHash.h
+	CallableTrait.h
+	CompareTie.h
+	Complex.h
+	DataView.h
+	EasyFmt.h
+	EnumRanges.h
+	IntWrapper.h
+	LazyGenerator.h
+	LinkedMap.h
+	Macros.h
+	MacrosUndef.h
+	MoveOnlyFunctor.h
+	NumRange.h
+	ObjectAddress.h
+	PrivateContructor.h
+	Proxy.h
+	QDebugHooker.h
+	RandomNumber.h
+	ReadFile.h
+	RollBack.h
+	SignalSequence.h
+	Singleton.h
+	SpinLock.h
+	Tuple.h
+	TypeList.h
+	UnitValue.h
+	Validator.h
+	VariantVisitor.h
+	VMap.h
+	WaitForSignal.h
 )
+
+# includes
+list(APPEND include_dirs ${PROJECT_SOURCE_DIR}/..)
+option(UTILITY_INCLUDE_SELF "make headers directly included" OFF)
+if(UTILITY_INCLUDE_SELF)
+	list(APPEND include_dirs ${PROJECT_SOURCE_DIR})
+endif()
+target_include_directories(Utility INTERFACE ${include_dirs})
+
+# EasyFmt
+option(UTILITY_EASYFMT_NO_CONSOLE "if EasyFmt print to console" OFF)
 if(UTILITY_EASYFMT_NO_CONSOLE)
-	target_compile_definitions(Utility INTERFACE
-		EASY_FMT_NO_CONSOLE
-	)
+	target_compile_definitions(Utility INTERFACE EASY_FMT_NO_CONSOLE)
 endif()
 
-if(UTILITY_EXAMPLE)
-	# FFT
-	find_package(fftw3 REQUIRED)
-
-	find_package(QT NAMES Qt5 Qt6 REQUIRED)
-	find_package(Qt{QT_VERSION_MAJOR}
-		COMPONENTS
-			Core # QDebugHooker, VMap, WaitForSignal
-	)
-
-	add_executable(test test.cpp)
-	target_link_libraries(test PUBLIC Utility)
+# FFT
+find_package(fftw3 QUIET)
+option(UTILITY_USE_FFTW3 "use fftw3 wrapper" ${fftw3_FOUND})
+if(UTILITY_USE_FFTW3)
+	target_sources(Utility FFT.h)
 endif()

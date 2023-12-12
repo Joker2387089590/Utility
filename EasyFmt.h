@@ -11,69 +11,72 @@
 
 #if !defined(EASY_FMT_NO_QT) &&  __has_include(<QString>)
 #	include <QString>
-#else
-#	define EASY_FMT_NO_QT
 #endif
 
 #include "Macros.h"
 
 namespace EasyFmts
 {
-inline namespace Literals
+// fmt::runtime has just overloaded std::string_view/wstring_view, why???
+template<typename Char, typename... T>
+inline auto vformat(std::basic_string_view<Char> f, T&&... args)
 {
-inline constexpr auto vformat = [](auto&& f, auto&&... args) {
-	try {
-		return fmt::vformat(fwd(f), fmt::make_format_args(args...));
-	}
-	catch(const std::system_error&) {
-		throw;
-	}
-};
+	using Context = fmt::buffer_context<Char>;
+	auto ff = fmt::basic_string_view<Char>(f);
+	return fmt::vformat(ff, fmt::make_format_args<Context>(args...));
+}
 
 #ifndef EASY_FMT_NO_CONSOLE
-inline constexpr auto print = [](auto&&... args) -> void {
-	try {
-		fmt::print(fwd(args)...);
-	}
-	catch(const std::system_error&) {
-		throw;
-	}
+template<typename Char, typename Color>
+auto print(std::FILE* file, Color color, const Char* str, std::size_t size)
+{
+	auto f = std::basic_string_view<Char>{str, size};
+	return [file, color, f](auto&&... args) -> void {
+#ifndef EASY_FMT_NO_COLOR
+		fmt::print(file, color, f, fwd(args)...);
+#else
+		fmt::print(file, f, fwd(args)...);
+#endif
+		fmt::print("\n");
+	};
 };
 #else
-inline constexpr auto print = [](auto&&...) {};
+inline constexpr auto print = [](auto&&...) { return [](auto&&...) -> void {}; };
 #endif
 
-[[nodiscard]] inline auto operator""_fmt(const char* str, std::size_t size)
+inline namespace Literals
 {
-    return [f = std::string_view(str, size)](auto&&... args) constexpr {
-        if constexpr (sizeof...(args) == 0)
-            return f;
-        else
+[[nodiscard]] constexpr auto operator""_fmt(const char* str, std::size_t size)
+{
+	return [f = std::string_view(str, size)](auto&&... args) constexpr {
+		if constexpr (sizeof...(args) == 0)
+			return f;
+		else
+			return fmt::format(fmt::runtime(f), fwd(args)...);
+	};
+}
+
+[[nodiscard]] constexpr auto operator""_fmt(const char16_t* str, std::size_t size)
+{
+	return [f = std::u16string_view(str, size)](auto&&... args) constexpr {
+		if constexpr (sizeof...(args) == 0)
+			return f;
+		else
 			return vformat(f, fwd(args)...);
 	};
 }
 
-[[nodiscard]] inline auto operator""_fmt(const char16_t* str, std::size_t size)
+[[nodiscard]] constexpr auto operator""_fmt(const wchar_t* str, std::size_t size)
 {
-    return [f = std::u16string_view(str, size)](auto&&... args) constexpr {
-        if constexpr (sizeof...(args) == 0)
-            return f;
-        else
-			return vformat(f, fwd(args)...);
-    };
+	return [f = std::wstring_view(str, size)](auto&&... args) constexpr {
+		if constexpr (sizeof...(args) == 0)
+			return f;
+		else
+			return fmt::format(fmt::runtime(f), fwd(args)...);
+	};
 }
 
-[[nodiscard]] inline auto operator""_fmt(const wchar_t* str, std::size_t size)
-{
-    return [f = std::wstring_view(str, size)](auto&&... args) constexpr {
-        if constexpr (sizeof...(args) == 0)
-            return f;
-        else
-			return vformat(f, fwd(args)...);
-    };
-}
-
-/// On Windows, the stdout and stderr is printed by conhost.exe, 
+/// On Windows, the stdout and stderr is printed by conhost.exe,
 /// which is the backend of cmd.exe, and it doesn't recognize the ANSI color escape.
 /// However fmt use ANSI color escape to implement colorful terminal output.
 /// We can modify the default behavious of conhost by setting Windows Register:
@@ -81,48 +84,42 @@ inline constexpr auto print = [](auto&&...) {};
 /// Or running command below by Powershell as Admin:
 /// `Set-ItemProperty HKCU:\Console VirtualTerminalLevel -Type DWORD 1`
 
-inline auto operator""_print(const char* str, std::size_t size)
+[[nodiscard]] inline auto operator""_print(const char* str, std::size_t size)
 {
-	return [f = std::string_view(str, size)](auto&&... args) {
-		print(
-#ifndef EASY_FMT_NO_COLOR
-			fg(fmt::color::aqua),
-#endif
-			f, fwd(args)...);
-		print("\n");
-	};
+	return EasyFmts::print(stdout, fg(fmt::color::aqua), str, size);
 }
 
-inline auto operator""_err(const char* str, std::size_t size)
+[[nodiscard]] inline auto operator""_err(const char* str, std::size_t size)
 {
-    return [f = std::string_view(str, size)](auto&&... args) {
-		print(stderr,
-#ifndef EASY_FMT_NO_COLOR
-			  fg(fmt::color::crimson),
-#endif
-			  f, fwd(args)...);
-		print(stderr, "\n");
-	};
+	return EasyFmts::print(stderr, fg(fmt::color::crimson), str, size);
 }
 
-inline auto operator""_fatal(const char* str, std::size_t size)
+[[nodiscard]] inline auto operator""_fatal(const char* str, std::size_t size)
 {
-	return [f = std::string(str, size)](auto&&... args) {
-		if constexpr (sizeof...(args) == 0)
-			throw std::runtime_error(f);
-		else
-			throw std::runtime_error(
-				fmt::vformat(f, fmt::make_format_args(fwd(args)...)));
+	return [f = operator""_fmt(str, size)](auto&&... args) {
+		throw std::runtime_error(std::string(f(fwd(args)...)));
 	};
 }
 
 #ifndef EASY_FMT_NO_QT
-inline auto operator""_qfmt(const char* str, std::size_t size)
+[[nodiscard]] constexpr auto operator""_qfmt(const char* str, std::size_t size)
 {
-    return [f = operator""_fmt(str, size)](auto&&... args) -> QString {
-        return QString::fromStdString(std::string(f(fwd(args)...)));
-    };
+	return [f = operator""_fmt(str, size)](auto&&... args) -> QString {
+		return QString::fromStdString(std::string(f(fwd(args)...)));
+	};
 }
+
+[[nodiscard]] constexpr auto operator""_qfmt(const char16_t* str, std::size_t size)
+{
+	// QString is base on UTF-16, this overloaded is faster than the char-version
+	return [f = operator""_fmt(str, size)](auto&&... args) -> QString {
+		return QString::fromStdU16String(std::u16string(f(fwd(args)...)));
+	};
+}
+
+// mix QString with wchar_t seems strange...
+auto operator""_qfmt(const wchar_t* str, std::size_t size) = delete;
+
 #endif
 } // namespace Literals
 
@@ -187,7 +184,7 @@ inline auto fjson(std::string_view f, Args&&... args)
 		}
 	}
 	if(pre < f.size()) r.append(f.substr(pre));
-	return fmt::vformat(r, fmt::make_format_args(fwd(args)...));
+	return fmt::format(runtime(r), fwd(args)...);
 }
 } // namespace EasyFmts
 

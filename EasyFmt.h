@@ -184,7 +184,7 @@ inline auto fjson(std::string_view f, Args&&... args)
 		}
 	}
 	if(pre < f.size()) r.append(f.substr(pre));
-	return fmt::format(runtime(r), fwd(args)...);
+	return fmt::format(fmt::runtime(r), fwd(args)...);
 }
 } // namespace EasyFmts
 

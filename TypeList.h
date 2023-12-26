@@ -289,6 +289,12 @@ struct TList
 
 	template<template<typename...> typename Is>
 	static constexpr bool ifOne = std::disjunction_v<Is<Ts>...>;
+
+	template<typename T, template<typename, typename> typename Is = std::is_same>
+	static constexpr bool allIs = std::conjunction_v<Is<T, Ts>...>;
+
+	template<typename T, template<typename, typename> typename Is = std::is_same>
+	static constexpr bool anyIs = std::disjunction_v<Is<T, Ts>...>;
 };
 
 /// Empty TList

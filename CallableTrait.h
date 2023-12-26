@@ -276,7 +276,7 @@ constexpr auto bind(T* obj) noexcept
 template<typename T, typename F>
 constexpr auto bind(T* obj, F f) noexcept
 {
-	using Impl = typename CallableOf<f>::template ExpandClass<BindImpl>;
+	using Impl = typename Callable<F>::template ExpandClass<BindImpl>;
 	using Func = typename Impl::template Func<T>;
 	return Func{obj, f};
 }

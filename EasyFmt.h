@@ -102,19 +102,32 @@ inline namespace Literals
 }
 
 #ifndef EASY_FMT_NO_QT
-[[nodiscard]] constexpr auto operator""_qfmt(const char* str, std::size_t size)
+// qfmtImpl: workaround for MSVC bug
+// https://developercommunity.visualstudio.com/t/ICE-when-importing-user-defined-literal/10095949
+
+[[nodiscard]] constexpr auto qfmtImpl(const char* str, std::size_t size)
 {
 	return [f = operator""_fmt(str, size)](auto&&... args) -> QString {
 		return QString::fromStdString(std::string(f(fwd(args)...)));
 	};
 }
 
-[[nodiscard]] constexpr auto operator""_qfmt(const char16_t* str, std::size_t size)
+[[nodiscard]] constexpr auto qfmtImpl(const char16_t* str, std::size_t size)
 {
-	// QString is base on UTF-16, this overloaded is faster than the char-version
 	return [f = operator""_fmt(str, size)](auto&&... args) -> QString {
 		return QString::fromStdU16String(std::u16string(f(fwd(args)...)));
 	};
+}
+
+[[nodiscard]] constexpr auto operator""_qfmt(const char* str, std::size_t size)
+{
+	return qfmtImpl(str, size);
+}
+
+// QString is base on UTF-16, this overloaded is faster than the char-version
+[[nodiscard]] constexpr auto operator""_qfmt(const char16_t* str, std::size_t size)
+{
+	return qfmtImpl(str, size);
 }
 
 // mix QString with wchar_t seems strange...

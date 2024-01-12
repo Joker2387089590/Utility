@@ -13,3 +13,9 @@
 	T(const T&) = delete;                   \
 	T& operator=(const T&) & = delete;      \
 	~T() noexcept = default;                \
+
+#define DeleteCtor(T)                      \
+	T(T&&) noexcept = delete;              \
+	T& operator=(T&&) & noexcept = delete; \
+	T(const T&) = delete;                  \
+	T& operator=(const T&) & = delete;     \

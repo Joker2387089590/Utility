@@ -182,7 +182,7 @@ struct fmt::formatter<std::pair<const std::string, Html::AttributeValue>>
 	constexpr auto parse(Context& context) const { return context.begin(); }
 
 	template<typename Context>
-	auto format(const std::pair<std::string, Html::AttributeValue>& pair, Context& context) const
+	auto format(const std::pair<const std::string, Html::AttributeValue>& pair, Context& context) const
 	{
 		auto& [k, v] = pair;
 		return fmt::format_to(context.out(), FMT_STRING(R"({}="{}")"), k, v.value);
@@ -220,9 +220,9 @@ struct Heading final : Element<Heading<l>>, Content<Heading<l>>
 		Content<Heading<level>>(std::move(content))
 	{}
 
-	using Element<Heading<l>>::operator();
-	using Content<Heading<l>>::content;
-	using Content<Heading<l>>::operator();
+	using Element<Heading>::operator();
+	using Content<Heading>::content;
+	using Content<Heading>::operator();
 };
 
 inline auto operator""_h1(const char* str, std::size_t size) { return Heading<1>({str, size}); }
@@ -268,11 +268,17 @@ struct Div final : Element<Div>, Container<Div>
 inline constexpr FunctionStyle<Div> div;
 
 /// <table> <tr> <th> <td>
-struct TableRow {};
 struct TableHeader {};
 struct TableData {};
+
+struct TableRow : Element<TableRow>
+{
+	TableRow() : ElementBase("tr") {}
+};
+
 struct Table final : Element<Table>, Container<Table>
 {
+	Table() : ElementBase("table"sv), ContainerBase() {}
 
 };
 

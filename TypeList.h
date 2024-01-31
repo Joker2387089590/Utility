@@ -1,9 +1,13 @@
 #pragma once
 #include <type_traits>
+#include <utility>
 
 namespace Types::Detail
 {
+/// variadic type list
 template<typename... Ts> struct TList;
+
+template<typename... Ts> struct Helper {};
 
 /// remove last
 template<typename... Ts> struct RemoveLastTrait;
@@ -48,7 +52,10 @@ struct Not
 
 /// remove
 template<typename T>
-struct IsSameTrait { template<typename Tx> using IsSame = std::is_same<T, Tx>; };
+struct IsSameTrait
+{
+	template<typename Tx> using IsSame = std::is_same<T, Tx>;
+};
 
 /// reverse
 template<typename... Ts> struct ReverseTrait;
@@ -80,13 +87,13 @@ struct AtTrait<0, T, Ts...> { using type = T; };
 template<std::size_t i, typename Ts, typename Ti> struct RepeatTrait;
 
 template<std::size_t i, typename... Ts, typename... Ti>
-struct RepeatTrait<i, TList<Ts...>, TList<Ti...>>
+struct RepeatTrait<i, Helper<Ts...>, Helper<Ti...>>
 {
-	using type = typename RepeatTrait<i - 1, TList<Ts..., Ti...>, TList<Ti...>>::type;
+	using type = typename RepeatTrait<i - 1, Helper<Ts..., Ti...>, Helper<Ti...>>::type;
 };
 
 template<typename... Ts, typename... Ti>
-struct RepeatTrait<0, TList<Ts...>, TList<Ti...>>
+struct RepeatTrait<0, Helper<Ts...>, Helper<Ti...>>
 {
 	using type = TList<Ts...>;
 };
@@ -94,20 +101,19 @@ struct RepeatTrait<0, TList<Ts...>, TList<Ti...>>
 /// unique
 template<typename T, typename Ts> struct UniqueTrait;
 
-template<typename... T, typename Ti, typename... Ts>
-struct UniqueTrait<TList<T...>, TList<Ti, Ts...>>
+template<typename... Ready, typename Now, typename... Remain>
+struct UniqueTrait<Helper<Ready...>, Helper<Now, Remain...>>
 {
-	using BaseType = TList<T...>;
 	using type = std::conditional_t<
-		std::disjunction_v<std::is_same<Ti, Ts>...>,
-		typename UniqueTrait<TList<T...    >, TList<Ts...>>::type,
-		typename UniqueTrait<TList<T..., Ti>, TList<Ts...>>::type>;
+		std::disjunction_v<std::is_same<Now, Ready>...>,
+		typename UniqueTrait<Helper<Ready...     >, Helper<Remain...>>::type,
+		typename UniqueTrait<Helper<Ready..., Now>, Helper<Remain...>>::type>;
 };
 
-template<typename... T>
-struct UniqueTrait<TList<T...>, TList<>>
+template<typename... Ready>
+struct UniqueTrait<Helper<Ready...>, Helper<>>
 {
-	using type = TList<T...>;
+	using type = TList<Ready...>;
 };
 
 /// to rows
@@ -146,74 +152,111 @@ struct SliceTrait<TL, b, std::index_sequence<is...>>
 	using type = typename TL::template Select<(b + is)...>;
 };
 
+template<typename TL, std::size_t b, std::size_t e>
+struct SliceCheck
+{
+	static_assert((0 <= b) && (b <= e) && (e <= TL::size()));
+	using type = typename SliceTrait<TL, b, std::make_index_sequence<e - b>>::type;
+};
+
 /// remove at
-template<typename TL, std::size_t... rs>
+template<typename TL, std::size_t... useless>
 struct RemoveAtTrait
 {
-	static_assert(std::conjunction_v<std::bool_constant<rs < TL::size()>...>,
-				  "remove an index that out of TList's range!");
+	static_assert(((useless < TL::size()) && ...), "remove an index that out of TList's range!");
 
-	template<std::size_t... us, std::size_t i, std::size_t... is>
-	static auto indexFilter(std::index_sequence<us...>, std::index_sequence<i, is...>)
+	static constexpr auto begin()
 	{
-		if constexpr (std::disjunction_v<std::bool_constant<rs == i>...>)
-			return indexFilter(std::index_sequence<us...   >{}, std::index_sequence<is...>{});
+		auto ready = std::index_sequence<>{};
+		auto remain = std::make_index_sequence<TL::size()>{};
+		return indexFilter(ready, remain);
+	}
+
+	template<std::size_t i>
+	static constexpr bool isUseless = ((i == useless) || ...);
+
+	template<std::size_t... ready, std::size_t i, std::size_t... remain>
+	static constexpr auto indexFilter(std::index_sequence<ready...>, std::index_sequence<i, remain...>)
+	{
+		if constexpr (isUseless<i>)
+			return indexFilter(std::index_sequence<ready...   >{}, std::index_sequence<remain...>{});
 		else
-			return indexFilter(std::index_sequence<us..., i>{}, std::index_sequence<is...>{});
+			return indexFilter(std::index_sequence<ready..., i>{}, std::index_sequence<remain...>{});
 	}
 
-	template<std::size_t... us>
-	static auto indexFilter(std::index_sequence<us...> u, std::index_sequence<>)
+	template<std::size_t... ready>
+	static constexpr auto indexFilter(std::index_sequence<ready...>, std::index_sequence<>)
 	{
-		return select(u);
-	}
-
-	template<std::size_t... us>
-	static auto select(std::index_sequence<us...>)
-	{
-		return typename TL::template Select<us...>{};
-	}
-
-	static auto begin()
-	{
-		auto us = std::index_sequence<>{};
-		auto is = std::make_index_sequence<TL::size()>{};
-		return indexFilter(us, is);
+		return typename TL::template Select<ready...>{};
 	}
 };
 
-/// TList
-template<typename... Ts>
-struct TList
+// extend
+template<typename Te, typename... T>
+struct ExtendTrait;
+
+template<typename... Te, typename... T>
+struct ExtendTrait<TList<Te...>, T...>
 {
-	constexpr TList() noexcept = default;
-	template<typename... Ti> explicit constexpr TList(Ti...) noexcept : TList() {}
+	using type = TList<T..., Te...>;
+};
 
-	static constexpr std::size_t size() { return sizeof...(Ts); }
+// find
+inline constexpr std::size_t npos = static_cast<std::size_t>(-1);
 
-	// TList<T0, T1, ..., Ti, ...> => Ti
-	template<std::size_t i>
-	using At = typename AtTrait<i, Ts...>::type;
+template<typename T, typename... Ts>
+constexpr std::size_t findFirst()
+{
+	std::size_t i = 0;
+	auto test = [&](bool b) { if(!b) ++i; return b; };
+	(test(std::is_same_v<Ts, T>) || ...);
+	return (i == sizeof...(Ts)) ? npos : i;
+}
 
-	static constexpr bool empty() { return size() == 0; }
+template<typename T, typename Ti, typename... Ts>
+constexpr std::pair<std::size_t, bool> findLast(std::size_t depth, Helper<Ti, Ts...>)
+{
+	auto [rdepth, found] = findLast<T>(depth + 1, Helper<Ts...>{});
+	if(found)
+		return {rdepth, found};
+	else
+		return {depth, std::is_same_v<T, Ti>};
+}
 
-	using First = At<0>;
+template<typename T>
+constexpr std::pair<std::size_t, bool> findLast(std::size_t depth, Helper<>)
+{
+	return {depth, false};
+}
 
-	using Last = At<size() - 1>;
+template<typename T, typename... Ts>
+constexpr std::size_t findLast()
+{
+	auto [depth, found] = findLast<T>(0, Helper<Ts...>{});
+	return found ? depth : npos;
+}
 
-	// TList<T1, T2, T3>::Select<0, 2> => TList<T1, T3>
-	template<std::size_t... is>
-	using Select = TList<At<is>...>;
+template<std::size_t i>
+using SizeConstant = std::integral_constant<std::size_t, i>;
 
-	// TList<T1, T2, T3, T4>::Slice<0, 2> => TList<T1, T2, T3>
-	template<std::size_t b, std::size_t e = size()>
-	using Slice = typename SliceTrait<TList, b, std::make_index_sequence<e - b>>::type;
+template<typename... Ts>
+struct TListBase
+{
+	static constexpr auto size = SizeConstant<sizeof...(Ts)>{};
 
-	template<typename... Tx>
-	using Prepend = TList<Tx..., Ts...>;
+	static constexpr auto empty = std::bool_constant<size() == 0>{};
 
+	// TList<T0, T1>::Append<T2, T3> => TList<T0, T1, T2, T3>
 	template<typename... Tx>
 	using Append = TList<Ts..., Tx...>;
+
+	// TList<T0, T1>::Extend<TList<T2, T3>> => TList<T0, T1, T2, T3>
+	template<typename TL>
+	using Extend = typename ExtendTrait<TL, Ts...>::type;
+
+	// TList<T0, T1>::Prepend<T2, T3> => TList<T2, T3, T0, T1>
+	template<typename... Tx>
+	using Prepend = TList<Tx..., Ts...>;
 
 	// F: struct { using type = 'Ts'?; } => F<Ts>::type
 	template<template<typename...> typename F>
@@ -226,25 +269,14 @@ struct TList
 	// TList<T0, T1, T2> => TList<T2, T1, T0>
 	using Reverse = typename ReverseTrait<Ts...>::type;
 
-	// TList<T1, T2>::Repeat<3> => TList<T1, T2, T1, T2, T1, T2>
+	// TList<Ta, Tb>::Repeat<3> => TList<Ta, Tb, Ta, Tb, Ta, Tb>
 	template<std::size_t s>
-	using Repeat = typename RepeatTrait<s, TList<>, TList>::type;
+	using Repeat = typename RepeatTrait<s, Helper<>, Helper<Ts...>>::type;
 
-	// TList<T1, T1, T2, T3, T3> => TList<T1, T2, T3>
-	using Unique = typename UniqueTrait<TList<>, TList>::type;
+	// TList<Ta, Ta, Tb, Tc, Tc> => TList<Ta, Tb, Tc>
+	using Unique = typename UniqueTrait<Helper<>, Helper<Ts...>>::type;
 
-	inline static constexpr bool repeated = size() != Unique::size();
-
-	// TList<T1, T2>::Unite<TList<T2, T3>> => TList<T1, T2, T3>
-	template<typename... To>
-	using Unite = typename TList<Ts..., To...>::Unique;
-
-	using RemoveFirst = typename RemoveFirstTrait<Ts...>::type;
-
-	using RemoveLast = typename RemoveLastTrait<Ts...>::type;
-
-	template<std::size_t... rs>
-	using RemoveAt = decltype(RemoveAtTrait<TList, rs...>::begin());
+	static constexpr bool repeated = Unique::size != size;
 
 	// C: if (C<Ts>::value) remove(Ts)
 	template<template<typename...> typename C>
@@ -258,27 +290,20 @@ struct TList
 	template<typename Tx>
 	using Remove = RemoveIf<IsSameTrait<Tx>::template IsSame>;
 
-	static constexpr auto npos = static_cast<std::size_t>(-1);
+	static constexpr auto npos = Detail::npos;
 
-	// TList<X, 'T', Y, T, Z> => 1
-	// TList<X, Y, Z> => npos
+	// TList<T0, T1, T2, T1, T0>::find<T1> => 1
+	// TList<T0, T1, T2, T1, T0>::find<T3> => npos
 	template<typename T>
-	static constexpr std::size_t find()
-	{
-		std::size_t i = 0;
-		auto test = [&](bool b) { if(!b) ++i; return b; };
-		(test(std::is_same_v<Ts, T>) || ...);
-		return i == size() ? npos : i;
-	}
+	static constexpr auto find = SizeConstant<Detail::findFirst<T, Ts...>()>{};
 
-	// TList<X, T, Y, 'T', Z> => 3
-	// TList<X, Y, Z> => npos
+	// TList<T0, T1, T2, T1, T0>::find<T1> => 3
+	// TList<T0, T1, T2, T1, T0>::find<T3> => npos
 	template<typename T>
-	static constexpr std::size_t findLast()
-	{
-		std::size_t ri = Reverse::template find<T>();
-		return ri == npos ? npos : size() - ri - 1;
-	}
+	static constexpr auto findLast = SizeConstant<Detail::findLast<T, Ts...>()>{};
+
+	template<typename T>
+	static constexpr auto contains = std::bool_constant<find<T>() != npos>{};
 
 	// TList<T1, T2, T3, T4>::ToRows<2> => TList<TList<T1, T2>, TList<T3, T4>>
 	template<std::size_t column>
@@ -299,33 +324,36 @@ struct TList
 
 /// Empty TList
 template<>
-struct TList<>
+struct TList<> : TListBase<> {};
+
+/// TList
+template<typename... Ts>
+struct TList : TListBase<Ts...>
 {
-	template<template<typename...> typename F> using To = TList;
+	using TListBase<Ts...>::size;
 
-	template<template<typename...> typename F> using Apply = F<>;
+	// TList<T0, T1, ..., Ti, ...> => Ti
+	template<std::size_t i>
+	using At = typename AtTrait<i, Ts...>::type;
 
-	template<typename... Tx> using Prepend = TList<Tx...>;
+	using First = At<0>;
 
-	template<typename... Tx> using Append = TList<Tx...>;
+	using Last = At<size() - 1>;
 
-	template<template<typename...> typename> using RemoveIf = TList;
+	// TList<T0, T1, T2, T3>::Select<0, 2> => TList<T0, T2>
+	template<std::size_t... is>
+	using Select = TList<At<is>...>;
 
-	template<typename> using Remove = TList;
+	// TList<T0, T1, T2, T3>::Slice<1, 3> => TList<T1, T2, T3>
+	template<std::size_t b, std::size_t e = size()>
+	using Slice = typename SliceCheck<TList, b, e>::type;
 
-	using Reverse = TList;
+	using RemoveFirst = typename RemoveFirstTrait<Ts...>::type;
 
-	static constexpr std::size_t size() { return 0; }
+	using RemoveLast = typename RemoveLastTrait<Ts...>::type;
 
-	static constexpr bool empty() { return true; }
-
-	static constexpr auto npos = static_cast<std::size_t>(-1);
-
-	template<typename>
-	static constexpr std::size_t find() { return npos; }
-
-	template<typename>
-	static constexpr std::size_t findLast() { return npos; }
+	template<std::size_t... rs>
+	using RemoveAt = decltype(RemoveAtTrait<TList, rs...>::begin());
 };
 
 template<typename... Ts> TList(Ts...) -> TList<Ts...>;
@@ -412,11 +440,29 @@ struct ZipTrait<TList<T1...>, TLs...>
 
 template<typename... Ts>
 using Zip = typename ZipTrait<Ts...>::type;
+
+/// unite
+template<typename Ready, typename... Lists>
+struct UniteTrait;
+
+template<typename... Ready, typename... Now, typename... Remain>
+struct UniteTrait<TList<Ready...>, TList<Now...>, Remain...>
+{
+	using type = typename UniteTrait<typename TList<Ready..., Now...>::Unique, Remain...>::type;
+};
+
+template<typename... Ready>
+struct UniteTrait<TList<Ready...>>
+{
+	using type = TList<Ready...>;
+};
+
+template<typename... Lists>
+using Unite = typename UniteTrait<Lists...>::type;
 }
 
 namespace Types
 {
-/// variadic type list
 using Detail::TList;
 
 /// Merge<T1, TList<T2, T3, T4>, TList<T5, T6>> => TList<T1, T2, T3, T4, T5, T6>
@@ -427,4 +473,7 @@ using Detail::From;
 
 /// Zip<TList<T1, T2, T3>, TList<T4, T5, T6>> => TList<TList<T1, T4>, TList<T2, T5>, TList<T3, T6>>
 using Detail::Zip;
+
+/// Unite<TList<T1, T2, T3>, TList<T1, T2, T4>> => TList<T1, T2, T3, T4>
+using Detail::Unite;
 }

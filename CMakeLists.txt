@@ -71,6 +71,11 @@ if(fmt_FOUND)
 	list(APPEND link_libs fmt::fmt)
 endif()
 
+# HTML
+if(fmt_FOUND)
+	list(APPEND sources Html.h)
+endif()
+
 # FFT
 find_package(fftw3 CONFIG QUIET)
 option(UTILITY_USE_FFTW3 "use fftw3 wrapper" ${fftw3_FOUND})

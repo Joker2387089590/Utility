@@ -4,9 +4,8 @@
 #include <cassert>
 #include <fmt/format.h>
 #include "LazyGenerator.h"
-#include "TypeList.h"
 
-namespace Html
+namespace Htmls
 {
 using namespace std::literals;
 
@@ -30,9 +29,19 @@ template<typename T>
 constexpr bool isAttribute = IsAttributeTrait<std::decay_t<T>>::value;
 
 // is string
+struct AsStr {} inline constexpr asStr;
+
+template<typename T, typename = void>
+struct IsString : std::false_type {};
 template<typename T>
-constexpr bool isString =
-	Types::TList<std::string, std::string_view, const char*>::anyIs<std::decay_t<T>>;
+struct IsString<T, std::void_t<decltype(asStr | std::declval<T>())>> : std::true_type {};
+template<typename T>
+constexpr bool isString = IsString<T>::value;
+
+inline std::string operator|(AsStr, std::string str) { return str; }
+inline std::string operator|(AsStr, std::string_view str) { return std::string(str); }
+inline std::string operator|(AsStr, const char* str) { return std::string(str); }
+void operator|(AsStr, std::nullptr_t) = delete;
 
 // is element
 template<typename T, typename = void>
@@ -95,6 +104,35 @@ struct Element
 	std::unordered_map<std::string, AttributeValue> attributes;
 };
 
+struct SimpleAttribute final : std::pair<std::string, std::string>
+{
+	using pair::pair;
+	const std::string& name() const { return this->first; }
+	const std::string& value() const { return this->second; }
+};
+
+template<typename T>
+inline auto attr(std::string name, T&& value)
+{
+	return SimpleAttribute(std::move(name), fmt::format(FMT_STRING("{}"), value));
+}
+
+struct AttributeProxy
+{
+	std::string_view name;
+
+	template<typename T>
+	auto operator=(T&& value) const
+	{
+		return attr(std::string(name), std::forward<T>(value));
+	}
+};
+
+inline constexpr auto operator""_attr(const char* str, std::size_t size)
+{
+	return AttributeProxy{{str, size}};
+}
+
 template<typename T>
 struct EmptyElement : Element<T>
 {
@@ -154,7 +192,12 @@ std::string str(T&& element)
 	if constexpr (hasStr<T>)
 		return std::forward<T>(element).str();
 	else if constexpr (isString<T>)
-		return std::string(std::forward<T>(element));
+	{
+		// overload operator for name-lookup
+		// which is 'the dark sides of the inner workings of C++'
+		// put your overloads into global namespace when this line cannot be compiled.
+		return asStr | std::forward<T>(element);
+	}
 	else if constexpr (isElement<T>)
 	{
 		if(element.attributes.empty())
@@ -176,20 +219,20 @@ std::string str(T&& element)
 
 // format 'std::unordered_map<string, Html::AttributeValue>' with 'fmt::join'
 template<>
-struct fmt::formatter<std::pair<const std::string, Html::AttributeValue>>
+struct fmt::formatter<std::pair<const std::string, Htmls::AttributeValue>>
 {
 	template<typename Context>
 	constexpr auto parse(Context& context) const { return context.begin(); }
 
 	template<typename Context>
-	auto format(const std::pair<const std::string, Html::AttributeValue>& pair, Context& context) const
+	auto format(const std::pair<const std::string, Htmls::AttributeValue>& pair, Context& context) const
 	{
 		auto& [k, v] = pair;
 		return fmt::format_to(context.out(), FMT_STRING(R"({}="{}")"), k, v.value);
 	}
 };
 
-namespace Html
+namespace Htmls
 {
 /// <br>
 struct LineBreak final : EmptyElement<LineBreak>
@@ -206,6 +249,21 @@ struct HorizontalRule final : EmptyElement<HorizontalRule>
 };
 
 inline constexpr FunctionStyle<HorizontalRule> hr;
+
+/// <img>
+struct Image final : EmptyElement<Image>
+{
+	Image() : EmptyElement("img"sv) {}
+};
+
+template<typename Src, typename Alt>
+auto img(Src&& source, Alt&& alternate)
+{
+	Image img;
+	img("src"_attr=str(std::forward<Src>(source)),
+		"alt"_attr=str(std::forward<Alt>(alternate)));
+	return img;
+}
 
 /// <h1> ~ <h6>
 template<int l>
@@ -225,12 +283,25 @@ struct Heading final : Element<Heading<l>>, Content<Heading<l>>
 	using Content<Heading>::operator();
 };
 
-inline auto operator""_h1(const char* str, std::size_t size) { return Heading<1>({str, size}); }
-inline auto operator""_h2(const char* str, std::size_t size) { return Heading<2>({str, size}); }
-inline auto operator""_h3(const char* str, std::size_t size) { return Heading<3>({str, size}); }
-inline auto operator""_h4(const char* str, std::size_t size) { return Heading<4>({str, size}); }
-inline auto operator""_h5(const char* str, std::size_t size) { return Heading<5>({str, size}); }
-inline auto operator""_h6(const char* str, std::size_t size) { return Heading<6>({str, size}); }
+template<int level>
+inline constexpr auto h = [](auto&& content) {
+	auto heading = Heading<level>{};
+	heading(std::forward<decltype(content)>(content));
+	return heading;
+};
+
+inline auto operator""_h1(const char* str, std::size_t size) { return h<1>(std::string_view(str, size)); }
+inline auto operator""_h2(const char* str, std::size_t size) { return h<2>(std::string_view(str, size)); }
+inline auto operator""_h3(const char* str, std::size_t size) { return h<3>(std::string_view(str, size)); }
+inline auto operator""_h4(const char* str, std::size_t size) { return h<4>(std::string_view(str, size)); }
+inline auto operator""_h5(const char* str, std::size_t size) { return h<5>(std::string_view(str, size)); }
+inline auto operator""_h6(const char* str, std::size_t size) { return h<6>(std::string_view(str, size)); }
+inline constexpr auto h1 = h<1>;
+inline constexpr auto h2 = h<2>;
+inline constexpr auto h3 = h<3>;
+inline constexpr auto h4 = h<4>;
+inline constexpr auto h5 = h<5>;
+inline constexpr auto h6 = h<6>;
 
 /// <p>
 struct Paragraph final : Element<Paragraph>, Content<Paragraph>
@@ -268,17 +339,139 @@ struct Div final : Element<Div>, Container<Div>
 inline constexpr FunctionStyle<Div> div;
 
 /// <table> <tr> <th> <td>
-struct TableHeader {};
-struct TableData {};
-
-struct TableRow : Element<TableRow>
+struct TableHeader final : Element<TableHeader>, Content<TableHeader>
 {
-	TableRow() : ElementBase("tr") {}
+	TableHeader(std::string content = {}) : ElementBase("th"sv), ContentBase(std::move(content)) {}
+	using ElementBase::operator();
+	using Content::operator();
+	using Content::content;
 };
+
+inline auto operator""_th(const char* str, std::size_t size) { return TableHeader({str, size}); }
+inline constexpr FunctionStyle<TableHeader> th;
+
+struct TableData final : Element<TableData>, Content<TableData>
+{
+	TableData(std::string content = {}) : ElementBase("td"sv), ContentBase(std::move(content)) {}
+	using ElementBase::operator();
+	using Content::operator();
+	using Content::content;
+};
+
+inline auto operator""_td(const char* str, std::size_t size) { return TableData({str, size}); }
+inline constexpr FunctionStyle<TableData> td;
+
+struct TableRow final : Element<TableRow>, Container<TableRow>
+{
+	TableRow() : ElementBase("tr"sv), ContainerBase() {}
+	using ElementBase::operator();
+	using ContainerBase::operator();
+	using ContainerBase::content;
+
+	template<typename Range>
+	auto& from(Range&& row)
+	{
+		for(auto&& element : row) (*this)(element);
+		return *this;
+	}
+
+	template<typename Cast, typename Range>
+	auto& from(Cast&& cast, Range&& row)
+	{
+		for(auto&& element : row) (*this)(cast(element));
+		return *this;
+	}
+};
+
+struct TableRowFunc : FunctionStyle<TableRow>
+{
+	constexpr TableRowFunc() = default;
+	using FunctionStyle::operator();
+
+	template<typename Range>
+	static auto from(Range&& row)
+	{
+		TableRow tr;
+		tr.from(std::forward<Range>(row));
+		return tr;
+	}
+
+	template<typename Cast, typename Range>
+	static auto from(Cast&& cast, Range&& row)
+	{
+		TableRow tr;
+		tr.from(std::forward<Cast>(cast), std::forward<Range>(row));
+		return tr;
+	}
+};
+
+inline constexpr TableRowFunc tr;
 
 struct Table final : Element<Table>, Container<Table>
 {
 	Table() : ElementBase("table"sv), ContainerBase() {}
+	using ElementBase::operator();
+	using ContainerBase::operator();
+	using ContainerBase::content;
+
+	template<typename Range>
+	auto& from(Range&& rows)
+	{
+		for(auto&& row : rows) (*this)(tr.from(row));
+		return *this;
+	}
+};
+
+struct TableFunc : FunctionStyle<Table>
+{
+	template<typename Range>
+	static auto from(Range&& rows)
+	{
+		Table table;
+		table.from(tr.from(rows));
+		return table;
+	}
+};
+
+inline constexpr FunctionStyle<Table> table;
+
+/// <html>
+struct Html final : Element<Html>, Container<Html>
+{
+	Html() : ElementBase("html"sv), ContainerBase() {}
+	using ElementBase::operator();
+	using ContainerBase::operator();
+	using ContainerBase::content;
+};
+
+inline constexpr FunctionStyle<Html> html;
+
+/// <head>
+struct Head final : Element<Head>, Container<Head>
+{
+	Head() : ElementBase("head"sv), ContainerBase() {}
+	using ElementBase::operator();
+	using ContainerBase::operator();
+	using ContainerBase::content;
+};
+
+inline constexpr FunctionStyle<Head> head;
+
+/// <body>
+struct Body final : Element<Body>, Container<Body>
+{
+	Body() : ElementBase("body"sv), ContainerBase() {}
+	using ElementBase::operator();
+	using ContainerBase::operator();
+	using ContainerBase::content;
+};
+
+inline constexpr FunctionStyle<Body> body;
+
+struct Document
+{
+	std::string declaration{"<!DOCTYPE html>"s};
+
 
 };
 

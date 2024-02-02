@@ -104,15 +104,19 @@ template<typename T, typename Ts> struct UniqueTrait;
 template<typename... Ready, typename Now, typename... Remain>
 struct UniqueTrait<Helper<Ready...>, Helper<Now, Remain...>>
 {
-	using type = std::conditional_t<
+	using BaseType = std::conditional_t<
 		std::disjunction_v<std::is_same<Now, Ready>...>,
-		typename UniqueTrait<Helper<Ready...     >, Helper<Remain...>>::type,
-		typename UniqueTrait<Helper<Ready..., Now>, Helper<Remain...>>::type>;
+		UniqueTrait<Helper<Ready...     >, Helper<Remain...>>,
+		UniqueTrait<Helper<Ready..., Now>, Helper<Remain...>>>;
+
+	using type = typename BaseType::type;
+	static constexpr std::size_t size = BaseType::size;
 };
 
 template<typename... Ready>
 struct UniqueTrait<Helper<Ready...>, Helper<>>
 {
+	static constexpr std::size_t size = sizeof...(Ready);
 	using type = TList<Ready...>;
 };
 
@@ -244,7 +248,7 @@ struct TListBase
 {
 	static constexpr auto size = SizeConstant<sizeof...(Ts)>{};
 
-	static constexpr auto empty = std::bool_constant<size() == 0>{};
+	static constexpr auto empty = std::bool_constant<sizeof...(Ts) == 0>{};
 
 	// TList<T0, T1>::Append<T2, T3> => TList<T0, T1, T2, T3>
 	template<typename... Tx>
@@ -276,7 +280,7 @@ struct TListBase
 	// TList<Ta, Ta, Tb, Tc, Tc> => TList<Ta, Tb, Tc>
 	using Unique = typename UniqueTrait<Helper<>, Helper<Ts...>>::type;
 
-	static constexpr bool repeated = Unique::size != size;
+	static constexpr bool repeated = UniqueTrait<Helper<>, Helper<Ts...>>::size != sizeof...(Ts);
 
 	// C: if (C<Ts>::value) remove(Ts)
 	template<template<typename...> typename C>
@@ -338,14 +342,14 @@ struct TList : TListBase<Ts...>
 
 	using First = At<0>;
 
-	using Last = At<size() - 1>;
+	using Last = At<sizeof...(Ts) - 1>;
 
 	// TList<T0, T1, T2, T3>::Select<0, 2> => TList<T0, T2>
 	template<std::size_t... is>
 	using Select = TList<At<is>...>;
 
 	// TList<T0, T1, T2, T3>::Slice<1, 3> => TList<T1, T2, T3>
-	template<std::size_t b, std::size_t e = size()>
+	template<std::size_t b, std::size_t e = sizeof...(Ts)>
 	using Slice = typename SliceCheck<TList, b, e>::type;
 
 	using RemoveFirst = typename RemoveFirstTrait<Ts...>::type;

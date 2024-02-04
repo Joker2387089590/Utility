@@ -9,6 +9,10 @@ namespace Htmls
 {
 using namespace std::literals;
 
+// forward declaration
+template<typename T> std::string str(T&& element);
+template<typename...> struct AlwaysFalse : std::false_type {};
+
 // has str
 template<typename T, typename = void>
 struct HasStrTrait : std::false_type {};
@@ -54,7 +58,48 @@ constexpr bool isElement = IsElementTrait<std::decay_t<T>>::value;
 // wrap std::string for fmt::formatter
 struct AttributeValue { std::string value; };
 
-template<typename T> std::string str(T&& element);
+// operator""_attr
+struct SimpleAttribute final : std::pair<std::string, std::string>
+{
+	using pair::pair;
+	const std::string& name() const { return this->first; }
+	const std::string& value() const { return this->second; }
+};
+
+template<typename T>
+inline auto attr(std::string name, T&& value)
+{
+	return SimpleAttribute(std::move(name), fmt::format(FMT_STRING("{}"), value));
+}
+
+struct AttributeProxy final
+{
+	std::string_view name;
+
+	template<typename T>
+	auto operator=(T&& value) const
+	{
+		return attr(std::string(name), std::forward<T>(value));
+	}
+};
+
+inline constexpr auto operator""_attr(const char* str, std::size_t size)
+{
+	return AttributeProxy{{str, size}};
+}
+
+// function style cpo
+template<typename E>
+struct From
+{
+	template<typename... Args>
+	auto operator()(Args&&... args) const
+	{
+		E element;
+		element.from(std::forward<Args>(args)...);
+		return element;
+	}
+};
 
 template<typename E>
 struct FunctionStyle
@@ -68,8 +113,11 @@ struct FunctionStyle
 		element(std::forward<Subs>(subs)...);
 		return element;
 	}
+
+	static constexpr auto from = From<E>{};
 };
 
+// element base class (CRTP)
 template<typename T>
 struct Element
 {
@@ -87,7 +135,15 @@ struct Element
 		return self(std::forward<Ti>(ti))(std::forward<Ts>(ts)...);
 	}
 
-	T& operator()() { return *static_cast<T*>(this); }
+	template<typename Ti, typename... Ts>
+	T operator()(Ti&& ti, Ts&&... ts) const
+	{
+		T self = static_cast<const T&>(*this);
+		return self(std::forward<Ti>(ti))(std::forward<Ts>(ts)...);
+	}
+
+	T& operator()() { return static_cast<T&>(*this); }
+	T operator()() const { return static_cast<const T&>(*this); }
 
 	template<typename A, std::enable_if_t<isAttribute<A>, int> = 0>
 	T& operator()(A&& attr)
@@ -100,38 +156,14 @@ struct Element
 		return static_cast<T&>(*this);
 	}
 
+	T& operator()(const AttributeProxy&)
+	{
+		static_assert(AlwaysFalse<T>{}, "attribute literal hasn't been assigned!");
+	}
+
 	const std::string_view tag;
 	std::unordered_map<std::string, AttributeValue> attributes;
 };
-
-struct SimpleAttribute final : std::pair<std::string, std::string>
-{
-	using pair::pair;
-	const std::string& name() const { return this->first; }
-	const std::string& value() const { return this->second; }
-};
-
-template<typename T>
-inline auto attr(std::string name, T&& value)
-{
-	return SimpleAttribute(std::move(name), fmt::format(FMT_STRING("{}"), value));
-}
-
-struct AttributeProxy
-{
-	std::string_view name;
-
-	template<typename T>
-	auto operator=(T&& value) const
-	{
-		return attr(std::string(name), std::forward<T>(value));
-	}
-};
-
-inline constexpr auto operator""_attr(const char* str, std::size_t size)
-{
-	return AttributeProxy{{str, size}};
-}
 
 template<typename T>
 struct EmptyElement : Element<T>
@@ -182,8 +214,6 @@ struct Container
 
 	std::vector<std::string> items;
 };
-
-template<typename...> struct AlwaysFalse : std::false_type {};
 
 // convert an element to string explicitly
 template<typename T>
@@ -254,16 +284,18 @@ inline constexpr FunctionStyle<HorizontalRule> hr;
 struct Image final : EmptyElement<Image>
 {
 	Image() : EmptyElement("img"sv) {}
+
+	template<typename Src, typename Alt>
+	auto& from(Src&& source, Alt&& alternate)
+	{
+		return EmptyElement::operator()(
+			"src"_attr=Htmls::str(std::forward<Src>(source)),
+			"alt"_attr=Htmls::str(std::forward<Alt>(alternate))
+		);
+	}
 };
 
-template<typename Src, typename Alt>
-auto img(Src&& source, Alt&& alternate)
-{
-	Image img;
-	img("src"_attr=str(std::forward<Src>(source)),
-		"alt"_attr=str(std::forward<Alt>(alternate)));
-	return img;
-}
+inline constexpr FunctionStyle<Image> img;
 
 /// <h1> ~ <h6>
 template<int l>
@@ -368,44 +400,21 @@ struct TableRow final : Element<TableRow>, Container<TableRow>
 	using ContainerBase::operator();
 	using ContainerBase::content;
 
-	template<typename Range>
-	auto& from(Range&& row)
-	{
-		for(auto&& element : row) (*this)(element);
-		return *this;
-	}
-
 	template<typename Cast, typename Range>
 	auto& from(Cast&& cast, Range&& row)
 	{
 		for(auto&& element : row) (*this)(cast(element));
 		return *this;
 	}
-};
-
-struct TableRowFunc : FunctionStyle<TableRow>
-{
-	constexpr TableRowFunc() = default;
-	using FunctionStyle::operator();
 
 	template<typename Range>
-	static auto from(Range&& row)
+	auto& from(Range&& range)
 	{
-		TableRow tr;
-		tr.from(std::forward<Range>(row));
-		return tr;
-	}
-
-	template<typename Cast, typename Range>
-	static auto from(Cast&& cast, Range&& row)
-	{
-		TableRow tr;
-		tr.from(std::forward<Cast>(cast), std::forward<Range>(row));
-		return tr;
+		return from(td, std::forward<Range>(range));
 	}
 };
 
-inline constexpr TableRowFunc tr;
+inline constexpr FunctionStyle<TableRow> tr;
 
 struct Table final : Element<Table>, Container<Table>
 {
@@ -414,22 +423,17 @@ struct Table final : Element<Table>, Container<Table>
 	using ContainerBase::operator();
 	using ContainerBase::content;
 
-	template<typename Range>
-	auto& from(Range&& rows)
+	template<typename Cast, typename Range>
+	auto& from(Cast&& cast, Range&& rows)
 	{
-		for(auto&& row : rows) (*this)(tr.from(row));
+		for(auto&& row : rows) (*this)(cast(row));
 		return *this;
 	}
-};
 
-struct TableFunc : FunctionStyle<Table>
-{
 	template<typename Range>
-	static auto from(Range&& rows)
+	auto& from(Range&& range)
 	{
-		Table table;
-		table.from(tr.from(rows));
-		return table;
+		return from(tr.from, std::forward<Range>(range));
 	}
 };
 
@@ -468,22 +472,23 @@ struct Body final : Element<Body>, Container<Body>
 
 inline constexpr FunctionStyle<Body> body;
 
-struct Document
+/// <meta>
+struct Meta final : EmptyElement<Meta>
 {
-	std::string declaration{"<!DOCTYPE html>"s};
-
-
+	Meta() : EmptyElement("meta"sv) {}
 };
 
+inline constexpr FunctionStyle<Meta> meta;
+
 /// attr: style
+/// TODO: CSS
 struct Style final
 {
 	static std::string_view name() { return "style"sv; }
 	std::string_view value() const& { return styleValue; }
-	std::string value() && { return std::move(styleValue); }
+	std::string&& value() && { return std::move(styleValue); }
 	std::string styleValue;
 };
 
 inline auto operator""_style(const char* str, std::size_t size) { return Style{{str, size}}; }
-inline constexpr FunctionStyle<Style> style;
 } // namespace Html

@@ -3,6 +3,7 @@
 #include <array>
 #include <cassert>
 #include <fmt/format.h>
+#include <QVariant>
 #include "LazyGenerator.h"
 
 namespace Htmls
@@ -45,6 +46,8 @@ constexpr bool isString = IsString<T>::value;
 inline std::string operator|(AsStr, std::string str) { return str; }
 inline std::string operator|(AsStr, std::string_view str) { return std::string(str); }
 inline std::string operator|(AsStr, const char* str) { return std::string(str); }
+inline std::string operator|(AsStr, const QString& qs) { return qs.toStdString(); }
+inline std::string operator|(AsStr, const QVariant& v) { return v.toString().toStdString(); }
 void operator|(AsStr, std::nullptr_t) = delete;
 
 // is element
@@ -132,21 +135,21 @@ struct Element
 	T& operator()(Ti&& ti, Ts&&... ts)
 	{
 		auto& self = static_cast<T&>(*this);
-		return self(std::forward<Ti>(ti))(std::forward<Ts>(ts)...);
+		return self[std::forward<Ti>(ti)](std::forward<Ts>(ts)...);
 	}
 
 	template<typename Ti, typename... Ts>
 	T operator()(Ti&& ti, Ts&&... ts) const
 	{
 		T self = static_cast<const T&>(*this);
-		return self(std::forward<Ti>(ti))(std::forward<Ts>(ts)...);
+		return self[std::forward<Ti>(ti)](std::forward<Ts>(ts)...);
 	}
 
 	T& operator()() { return static_cast<T&>(*this); }
 	T operator()() const { return static_cast<const T&>(*this); }
 
 	template<typename A, std::enable_if_t<isAttribute<A>, int> = 0>
-	T& operator()(A&& attr)
+	T& operator[](A&& attr)
 	{
 		auto [pos, b] = this->attributes.try_emplace(
 			std::string(std::forward<A>(attr).name()),
@@ -156,7 +159,7 @@ struct Element
 		return static_cast<T&>(*this);
 	}
 
-	T& operator()(const AttributeProxy&)
+	T& operator[](const AttributeProxy&)
 	{
 		static_assert(AlwaysFalse<T>{}, "attribute literal hasn't been assigned!");
 	}
@@ -188,9 +191,10 @@ struct Content
 	std::string_view content() const& { return contentValue; }
 	std::string&& content() && { return std::move(contentValue); }
 
-	template<typename T, std::enable_if_t<(isElement<T> || isString<T>), int> = 0>
-	E& operator()(T&& element)
+	template<typename T, std::enable_if_t<isElement<T> || isString<T>, int> = 0>
+	E& operator[](T&& element)
 	{
+		static_assert(isElement<T> || isString<T>);
 		this->contentValue.append(str(std::forward<T>(element)));
 		return static_cast<E&>(*this);
 	}
@@ -204,7 +208,7 @@ struct Container
 	using ContainerBase = Container;
 
 	template<typename T, std::enable_if_t<isElement<T> || isString<T>, int> = 0>
-	E& operator()(T&& element)
+	E& operator[](T&& element)
 	{
 		this->items.emplace_back(str(std::forward<T>(element)));
 		return static_cast<E&>(*this);
@@ -311,8 +315,9 @@ struct Heading final : Element<Heading<l>>, Content<Heading<l>>
 	{}
 
 	using Element<Heading>::operator();
+	using Element<Heading>::operator[];
 	using Content<Heading>::content;
-	using Content<Heading>::operator();
+	using Content<Heading>::operator[];
 };
 
 template<int level>
@@ -328,19 +333,20 @@ inline auto operator""_h3(const char* str, std::size_t size) { return h<3>(std::
 inline auto operator""_h4(const char* str, std::size_t size) { return h<4>(std::string_view(str, size)); }
 inline auto operator""_h5(const char* str, std::size_t size) { return h<5>(std::string_view(str, size)); }
 inline auto operator""_h6(const char* str, std::size_t size) { return h<6>(std::string_view(str, size)); }
-inline constexpr auto h1 = h<1>;
-inline constexpr auto h2 = h<2>;
-inline constexpr auto h3 = h<3>;
-inline constexpr auto h4 = h<4>;
-inline constexpr auto h5 = h<5>;
-inline constexpr auto h6 = h<6>;
+inline constexpr auto h1 = FunctionStyle<Heading<1>>{};
+inline constexpr auto h2 = FunctionStyle<Heading<2>>{};
+inline constexpr auto h3 = FunctionStyle<Heading<3>>{};
+inline constexpr auto h4 = FunctionStyle<Heading<4>>{};
+inline constexpr auto h5 = FunctionStyle<Heading<5>>{};
+inline constexpr auto h6 = FunctionStyle<Heading<6>>{};
 
 /// <p>
 struct Paragraph final : Element<Paragraph>, Content<Paragraph>
 {
 	Paragraph(std::string content = {}) : ElementBase("p"sv), ContentBase(std::move(content)) {}
 	using ElementBase::operator();
-	using Content::operator();
+	using ElementBase::operator[];
+	using Content::operator[];
 	using Content::content;
 };
 
@@ -352,7 +358,8 @@ struct Preformatted final : Element<Preformatted>, Content<Preformatted>
 {
 	Preformatted(std::string content = {}) : ElementBase("pre"sv), ContentBase(std::move(content)) {}
 	using ElementBase::operator();
-	using Content::operator();
+	using ElementBase::operator[];
+	using Content::operator[];
 	using Content::content;
 };
 
@@ -364,8 +371,9 @@ struct Div final : Element<Div>, Container<Div>
 {
 	Div() : ElementBase("div"sv), ContainerBase() {}
 	using ElementBase::operator();
-	using ContainerBase::operator();
+	using ElementBase::operator[];
 	using ContainerBase::content;
+	using ContainerBase::operator[];
 };
 
 inline constexpr FunctionStyle<Div> div;
@@ -375,7 +383,8 @@ struct TableHeader final : Element<TableHeader>, Content<TableHeader>
 {
 	TableHeader(std::string content = {}) : ElementBase("th"sv), ContentBase(std::move(content)) {}
 	using ElementBase::operator();
-	using Content::operator();
+	using ElementBase::operator[];
+	using Content::operator[];
 	using Content::content;
 };
 
@@ -386,7 +395,8 @@ struct TableData final : Element<TableData>, Content<TableData>
 {
 	TableData(std::string content = {}) : ElementBase("td"sv), ContentBase(std::move(content)) {}
 	using ElementBase::operator();
-	using Content::operator();
+	using ElementBase::operator[];
+	using Content::operator[];
 	using Content::content;
 };
 
@@ -397,7 +407,8 @@ struct TableRow final : Element<TableRow>, Container<TableRow>
 {
 	TableRow() : ElementBase("tr"sv), ContainerBase() {}
 	using ElementBase::operator();
-	using ContainerBase::operator();
+	using ElementBase::operator[];
+	using ContainerBase::operator[];
 	using ContainerBase::content;
 
 	template<typename Cast, typename Range>
@@ -420,7 +431,8 @@ struct Table final : Element<Table>, Container<Table>
 {
 	Table() : ElementBase("table"sv), ContainerBase() {}
 	using ElementBase::operator();
-	using ContainerBase::operator();
+	using ElementBase::operator[];
+	using ContainerBase::operator[];
 	using ContainerBase::content;
 
 	template<typename Cast, typename Range>
@@ -444,7 +456,8 @@ struct Html final : Element<Html>, Container<Html>
 {
 	Html() : ElementBase("html"sv), ContainerBase() {}
 	using ElementBase::operator();
-	using ContainerBase::operator();
+	using ElementBase::operator[];
+	using ContainerBase::operator[];
 	using ContainerBase::content;
 };
 
@@ -455,7 +468,8 @@ struct Head final : Element<Head>, Container<Head>
 {
 	Head() : ElementBase("head"sv), ContainerBase() {}
 	using ElementBase::operator();
-	using ContainerBase::operator();
+	using ElementBase::operator[];
+	using ContainerBase::operator[];
 	using ContainerBase::content;
 };
 
@@ -466,7 +480,8 @@ struct Body final : Element<Body>, Container<Body>
 {
 	Body() : ElementBase("body"sv), ContainerBase() {}
 	using ElementBase::operator();
-	using ContainerBase::operator();
+	using ElementBase::operator[];
+	using ContainerBase::operator[];
 	using ContainerBase::content;
 };
 

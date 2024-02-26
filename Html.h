@@ -506,4 +506,15 @@ struct Style final
 };
 
 inline auto operator""_style(const char* str, std::size_t size) { return Style{{str, size}}; }
+
+/// attr: class
+struct Class final
+{
+	static std::string_view name() { return "class"sv; }
+	std::string_view value() const& { return className; }
+	std::string&& value() && { return std::move(className); }
+	std::string className;
+};
+
+inline auto operator""_class(const char* str, std::size_t size) { return Class{{str, size}}; }
 } // namespace Html

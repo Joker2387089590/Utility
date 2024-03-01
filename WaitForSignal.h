@@ -10,7 +10,7 @@ auto WaitForSignal(T* sender,
 				   QEventLoop::ProcessEventsFlag flag = QEventLoop::ExcludeUserInputEvents)
 {
 	QEventLoop loop;
-    std::tuple<Args...> result;
+	std::tuple<std::decay_t<Args>...> result;
     auto slot = [&](const Args&... args) {
         result = {args...};
         loop.quit();

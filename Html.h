@@ -412,7 +412,7 @@ struct TableRow final : Element<TableRow>, Container<TableRow>
 	using ContainerBase::content;
 
 	template<typename Cast, typename Range>
-	auto& from(Cast&& cast, Range&& row)
+	auto& from(const Cast& cast, Range&& row)
 	{
 		for(auto&& element : row) (*this)(cast(element));
 		return *this;
@@ -436,7 +436,7 @@ struct Table final : Element<Table>, Container<Table>
 	using ContainerBase::content;
 
 	template<typename Cast, typename Range>
-	auto& from(Cast&& cast, Range&& rows)
+	auto& from(const Cast& cast, Range&& rows)
 	{
 		for(auto&& row : rows) (*this)(cast(row));
 		return *this;

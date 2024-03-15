@@ -59,7 +59,13 @@ template<typename T>
 constexpr bool isElement = IsElementTrait<std::decay_t<T>>::value;
 
 // wrap std::string for fmt::formatter
-struct AttributeValue { std::string value; };
+struct AttributeValue
+{
+	template<typename T>
+	AttributeValue(T&& v) : value(std::forward<T>(v)) {}
+
+	std::string value;
+};
 
 // operator""_attr
 struct SimpleAttribute final : std::pair<std::string, std::string>
@@ -153,7 +159,7 @@ struct Element
 	{
 		auto [pos, b] = this->attributes.try_emplace(
 			std::string(std::forward<A>(attr).name()),
-			Lazys::lazy<AttributeValue>(std::forward<A>(attr).value())
+			std::forward<A>(attr).value()
 		);
 		assert(b);
 		return static_cast<T&>(*this);
@@ -517,4 +523,15 @@ struct Class final
 };
 
 inline auto operator""_class(const char* str, std::size_t size) { return Class{{str, size}}; }
+
+/// attr: span
+struct Span final
+{
+	static std::string_view name() { return "span"sv; }
+	std::string_view value() const& { return spanName; }
+	std::string&& value() && { return std::move(spanName); }
+	std::string spanName;
+};
+
+inline auto operator""_span(const char* str, std::size_t size) { return Span{{str, size}}; }
 } // namespace Html

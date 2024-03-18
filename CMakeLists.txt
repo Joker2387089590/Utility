@@ -83,6 +83,12 @@ if(UTILITY_USE_FFTW3)
 	list(APPEND sources FFT.h)
 endif()
 
+# RollBack
+option(UTILITY_NOT_USE_ROLLBACKS_NAMESPACE OFF)
+if(UTILITY_NOT_USE_ROLLBACKS_NAMESPACE)
+	list(APPEND definitions UTILITY_NOT_USE_ROLLBACKS_NAMESPACE)
+endif()
+
 add_library(Utility INTERFACE)
 target_sources(Utility INTERFACE ${sources})
 target_include_directories(Utility INTERFACE ${include_dirs})

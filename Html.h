@@ -157,7 +157,7 @@ struct Element
 	template<typename A, std::enable_if_t<isAttribute<A>, int> = 0>
 	T& operator[](A&& attr)
 	{
-		auto [pos, b] = this->attributes.try_emplace(
+		[[maybe_unused]] auto [pos, b] = this->attributes.try_emplace(
 			std::string(std::forward<A>(attr).name()),
 			std::forward<A>(attr).value()
 		);

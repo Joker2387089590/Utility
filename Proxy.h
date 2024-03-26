@@ -118,8 +118,8 @@ private:
 public:
 	constexpr ProxyImpl(ProxyImpl&&) noexcept = default;
 	constexpr ProxyImpl& operator=(ProxyImpl&&) & noexcept = default;
-	constexpr ProxyImpl(const ProxyImpl&) = default;
-	constexpr ProxyImpl& operator=(const ProxyImpl&) & = default;
+	constexpr ProxyImpl(const ProxyImpl&) noexcept = default;
+	constexpr ProxyImpl& operator=(const ProxyImpl&) & noexcept = default;
 	~ProxyImpl() noexcept = default;
 
 public:

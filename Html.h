@@ -49,9 +49,10 @@ inline std::string operator|(AsStr, std::string_view str) { return std::string(s
 inline std::string operator|(AsStr, const char* str) { return std::string(str); }
 inline std::string operator|(AsStr, const QString& qs) { return qs.toStdString(); }
 inline std::string operator|(AsStr, const QVariant& v) { return v.toString().toStdString(); }
-inline std::string operator|(AsStr, const QJsonValue& v) { return v.toString().toStdString(); }
-inline std::string operator|(AsStr, QJsonValueRef v) { return v.toString().toStdString(); }
-inline std::string operator|(AsStr, QJsonValueConstRef v) { return v.toString().toStdString(); }
+inline std::string operator|(AsStr, const QJsonValue& v) { return v.toVariant().toString().toStdString(); }
+inline std::string operator|(AsStr, QJsonValueRef v) { return v.toVariant().toString().toStdString(); }
+inline std::string operator|(AsStr, QJsonValueConstRef v) { return v.toVariant().toString().toStdString(); }
+
 void operator|(AsStr, std::nullptr_t) = delete;
 
 // is element

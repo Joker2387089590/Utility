@@ -6,13 +6,9 @@
 namespace Proxys::Detail
 {
 /// forward declaration
-
 template<typename... Ds> struct Facade;
-
 template<typename... Ds> class ProxyImpl;
-
 template<typename... Ds> class UniqueProxyImpl;
-
 template<template<typename...> typename P, typename F> struct FacadeTrait;
 
 template<typename F>
@@ -22,7 +18,6 @@ template<typename F>
 using Proxy = typename FacadeTrait<ProxyImpl, F>::Proxys;
 
 /// dispatch
-
 template<typename F> struct Dispatch;
 
 template<typename R, typename... As>
@@ -36,7 +31,6 @@ template<typename F> auto isDispatch(const Dispatch<F>&) -> std::true_type;
 template<typename T> using IsDispatch = decltype(isDispatch(std::declval<T>()));
 
 /// facade
-
 template<typename T, typename D, typename Invoker> struct Wrap;
 
 template<typename T, typename D, typename R, typename... As>
@@ -111,9 +105,6 @@ public:
 		this->vptr = std::addressof(Facades::template vtable<T>);
 		return *this;
 	}
-
-private:
-	constexpr ProxyImpl(void* object, VTable* vptr) : object(object), vptr(vptr) {}
 
 public:
 	constexpr ProxyImpl(ProxyImpl&&) noexcept = default;

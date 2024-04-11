@@ -9,8 +9,6 @@
 #include <QJsonValue>
 #endif
 
-#include "LazyGenerator.h"
-
 namespace Htmls
 {
 using namespace std::literals;

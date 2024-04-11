@@ -133,6 +133,11 @@ inline namespace Literals
 // mix QString with wchar_t seems strange...
 auto operator""_qfmt(const wchar_t* str, std::size_t size) = delete;
 
+// NOTE: this use something in fmt::detail
+constexpr auto operator""_a(const char16_t* s, std::size_t) -> fmt::detail::udl_arg<char16_t> {
+	return {s};
+}
+
 #endif
 } // namespace Literals
 

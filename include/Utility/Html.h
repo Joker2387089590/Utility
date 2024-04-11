@@ -3,8 +3,12 @@
 #include <array>
 #include <cassert>
 #include <fmt/format.h>
+
+#ifndef UTILITY_HTML_NO_QT
 #include <QVariant>
 #include <QJsonValue>
+#endif
+
 #include "LazyGenerator.h"
 
 namespace Htmls
@@ -47,11 +51,15 @@ constexpr bool isString = IsString<T>::value;
 inline std::string operator|(AsStr, std::string str) { return str; }
 inline std::string operator|(AsStr, std::string_view str) { return std::string(str); }
 inline std::string operator|(AsStr, const char* str) { return std::string(str); }
+
+#ifndef UTILITY_HTML_NO_QT
 inline std::string operator|(AsStr, const QString& qs) { return qs.toStdString(); }
 inline std::string operator|(AsStr, const QVariant& v) { return v.toString().toStdString(); }
 inline std::string operator|(AsStr, const QJsonValue& v) { return v.toString().toStdString(); }
 inline std::string operator|(AsStr, QJsonValueRef v) { return v.toString().toStdString(); }
 inline std::string operator|(AsStr, QJsonValueConstRef v) { return v.toString().toStdString(); }
+#endif
+
 void operator|(AsStr, std::nullptr_t) = delete;
 
 // is element

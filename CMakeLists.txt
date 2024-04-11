@@ -34,12 +34,12 @@ set(link_libs)
 set(definitions)
 
 # includes
-set(def_include_dir "${PROJECT_SOURCE_DIR}/..")
+set(def_include_dir "${PROJECT_SOURCE_DIR}/include")
 cmake_path(NORMAL_PATH def_include_dir)
 list(APPEND include_dirs ${def_include_dir})
 option(UTILITY_INCLUDE_SELF "make headers directly included" OFF)
 if(UTILITY_INCLUDE_SELF)
-	list(APPEND include_dirs "${PROJECT_SOURCE_DIR}")
+	list(APPEND include_dirs "${PROJECT_SOURCE_DIR}/include/Utility")
 endif()
 
 # Qt
@@ -73,6 +73,10 @@ endif()
 
 # HTML
 if(fmt_FOUND)
+	option(UTILITY_HTML_USE_QT "if Html support Qt" ${QT_FOUND})
+	if(NOT UTILITY_HTML_USE_QT)
+		list(APPEND definitions UTILITY_HTML_NO_QT)
+	endif()
 	list(APPEND sources Html.h)
 endif()
 
@@ -89,8 +93,13 @@ if(UTILITY_NOT_USE_ROLLBACKS_NAMESPACE)
 	list(APPEND definitions UTILITY_NOT_USE_ROLLBACKS_NAMESPACE)
 endif()
 
+set(source_paths)
+foreach(source IN LISTS sources)
+	list(APPEND source_paths "include/Utility/${source}")
+endforeach()
+
 add_library(Utility INTERFACE)
-target_sources(Utility INTERFACE ${sources})
+target_sources(Utility INTERFACE ${source_paths})
 target_include_directories(Utility INTERFACE ${include_dirs})
 target_link_libraries(Utility INTERFACE ${link_libs})
 target_compile_definitions(Utility INTERFACE ${definitions})

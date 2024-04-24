@@ -77,6 +77,7 @@ if(fmt_FOUND)
 	if(NOT UTILITY_HTML_USE_QT)
 		list(APPEND definitions UTILITY_HTML_NO_QT)
 	endif()
+	# TODO: add UTILITY_HTML_NO_QT_XML option
 	list(APPEND sources Html.h)
 endif()
 

@@ -5,8 +5,15 @@
 #include <fmt/format.h>
 
 #ifndef UTILITY_HTML_NO_QT
-#include <QVariant>
-#include <QJsonValue>
+#  include <QVariant>
+#  include <QJsonValue>
+#  if !defined(UTILITY_HTML_NO_QT_XML) && __has_include(<QXmlStreamReader>) && __has_include(<QXmlStreamWriter>)
+#    include <QXmlStreamReader>
+#    include <QXmlStreamWriter>
+#    define UTILITY_HTML_HAS_QT_XML 1
+#  else
+#    define UTILITY_HTML_HAS_QT_XML 0
+#  endif
 #endif
 
 namespace Htmls
@@ -544,4 +551,26 @@ struct Span final
 };
 
 inline auto operator""_span(const char* str, std::size_t size) { return Span{{str, size}}; }
+
+#if UTILITY_HTML_HAS_QT_XML
+inline QByteArray formatDocument(std::string_view shtml)
+{
+	// TODO: check if shtml is valid XML
+	QByteArray fhtml;
+	QXmlStreamReader reader(QByteArray::fromRawData(shtml.data(), shtml.size()));
+	QXmlStreamWriter writer(&fhtml);
+	writer.setAutoFormatting(true);
+	while(!reader.atEnd())
+		if(reader.readNext(); !reader.isWhitespace()) // TODO: check if white spaces in <pre> kept
+			writer.writeCurrentToken(reader);
+	return fhtml;
+}
+
+template<typename E, std::enable_if_t<isElement<E>, int> = 0>
+inline QByteArray formatDocument(const E& element)
+{
+	std::string shtml = str(element);
+	return formatDocument(std::string_view(shtml));
+}
+#endif
 } // namespace Html

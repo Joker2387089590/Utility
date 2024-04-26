@@ -110,11 +110,22 @@ template<typename F> using FunctorClass     = typename Callable<F>::Class;
 template<typename F> using FunctorArguments = typename Callable<F>::Arguments;
 template<typename F> using FunctorInvoker   = typename Callable<F>::Invoker;
 
-template<auto f> using FunctorInfo = CallableOf<f>;
-template<auto f> using ReturnOf    = typename FunctorInfo<f>::Return;
-template<auto f> using ClassOf     = typename FunctorInfo<f>::Class;
-template<auto f> using ArgumentsOf = typename FunctorInfo<f>::Arguments;
-template<auto f> using InvokerOf   = typename FunctorInfo<f>::Invoker;
+template<typename F, template<typename... Ts> typename E>
+using Expand = typename Callable<F>::template Expand<E>;
+
+template<typename F, template<typename... Ts> typename E>
+using ExpandClass = typename Callable<F>::template ExpandClass<E>;
+
+template<auto f> using ReturnOf    = typename CallableOf<f>::Return;
+template<auto f> using ClassOf     = typename CallableOf<f>::Class;
+template<auto f> using ArgumentsOf = typename CallableOf<f>::Arguments;
+template<auto f> using InvokerOf   = typename CallableOf<f>::Invoker;
+
+template<auto f, template<typename... Ts> typename E>
+using ExpandOf = typename CallableOf<f>::template Expand<E>;
+
+template<auto f, template<typename... Ts> typename E>
+using ExpandClassOf = typename CallableOf<f>::template ExpandClass<E>;
 
 template<typename Fr>
 struct InvokeTypedFunctor : Callable<Fr>
@@ -180,15 +191,18 @@ struct ArgTypedFunctor
 
 namespace cpo
 {
-/// [...](auto...) -> auto {...} | invokeAs<int(int)> => [...](int) -> int {...}
+/// [...](auto...) -> auto {...} | invokeAs<int(int)>
+///		=> [...](int) -> int {...}
 template<typename Fr>
 inline constexpr auto invokeAs = InvokeTypedFunctor<Fr>{};
 
-/// [...](auto...) -> auto {...} | returnAs<int> => [...](auto...) -> int {...}
+/// [...](auto...) -> auto {...} | returnAs<int>
+///		=> [...](auto...) -> int {...}
 template<typename R>
 inline constexpr auto returnAs = ReturnTypedFunctor<R>{};
 
-/// [...](auto...) -> auto {...} | argAs<int, int> => [...](int, int) -> auto {...}
+/// [...](auto...) -> auto {...} | argAs<int, int>
+///		=> [...](int, int) -> auto {...}
 template<typename... Args>
 inline constexpr auto argAs = ArgTypedFunctor<Args...>{};
 }
@@ -286,16 +300,14 @@ struct UnbindImpl
 {
 	template<auto f>
 	static constexpr R impl(T* obj, Args... args)
+		noexcept(noexcept((obj->*f)(std::forward<Args>(args)...)))
 	{
 		return (obj->*f)(std::forward<Args>(args)...);
 	}
 };
 
 template<auto memberFunc>
-constexpr auto unbind =
-	CallableOf<memberFunc>::
-	template ExpandClass<UnbindImpl>::
-	template impl<memberFunc>;
+constexpr auto unbind = ExpandClassOf<memberFunc, UnbindImpl>::template impl<memberFunc>;
 }
 
 namespace Callables
@@ -307,12 +319,15 @@ using Detail::FunctorReturn;
 using Detail::FunctorClass;
 using Detail::FunctorArguments;
 using Detail::FunctorInvoker;
+using Detail::Expand;
+using Detail::ExpandClass;
 
-using Detail::FunctorInfo;
 using Detail::ReturnOf;
 using Detail::ClassOf;
 using Detail::ArgumentsOf;
 using Detail::InvokerOf;
+using Detail::ExpandOf;
+using Detail::ExpandClassOf;
 
 namespace cpo = Detail::cpo;
 using cpo::invokeAs;

@@ -137,7 +137,7 @@ struct InvokeTypedFunctor : Callable<Fr>
 	static constexpr auto wrap(F&& f, TList<Args...>)
 	{
 		return [f = std::forward<F>(f)](Args... ts) constexpr -> R {
-			return f(std::forward<Args>(ts)...);
+			return static_cast<R>(f(std::forward<Args>(ts)...));
 		};
 	}
 
@@ -155,7 +155,7 @@ struct ReturnTypedFunctor
 	static constexpr auto wrap(F&& f, TList<Args...>)
 	{
 		return [f = std::forward<F>(f)](Args... ts) constexpr -> R {
-			return R(f(std::forward<Args>(ts)...));
+			return static_cast<R>(f(std::forward<Args>(ts)...));
 		};
 	}
 
@@ -171,7 +171,7 @@ struct ReturnTypedFunctor
 		{
 			// f may be a functor with overloaded calling operators
 			return [f = std::forward<F>(f)](auto&&... args) constexpr -> R {
-				return R(f(std::forward<decltype(args)>(args)...));
+				return static_cast<R>(f(std::forward<decltype(args)>(args)...));
 			};
 		}
 	}
@@ -191,18 +191,12 @@ struct ArgTypedFunctor
 
 namespace cpo
 {
-/// [...](auto...) -> auto {...} | invokeAs<int(int)>
-///		=> [...](int) -> int {...}
 template<typename Fr>
 inline constexpr auto invokeAs = InvokeTypedFunctor<Fr>{};
 
-/// [...](auto...) -> auto {...} | returnAs<int>
-///		=> [...](auto...) -> int {...}
 template<typename R>
 inline constexpr auto returnAs = ReturnTypedFunctor<R>{};
 
-/// [...](auto...) -> auto {...} | argAs<int, int>
-///		=> [...](int, int) -> auto {...}
 template<typename... Args>
 inline constexpr auto argAs = ArgTypedFunctor<Args...>{};
 }
@@ -262,7 +256,7 @@ struct BindImpl
 	{
 		constexpr R operator()(As... args) const
 		{
-			return (obj->*f)(std::forward<As>(args)...);
+			return (static_cast<T>(*obj).*f)(std::forward<As>(args)...);
 		}
 		Tr* const obj;
 	};
@@ -272,7 +266,7 @@ struct BindImpl
 	{
 		constexpr R operator()(As... args) const
 		{
-			return (obj->*f)(std::forward<As>(args)...);
+			return (static_cast<T>(*obj).*f)(std::forward<As>(args)...);
 		}
 		Tr* const obj;
 		R(T::* const f)(As...);
@@ -299,10 +293,10 @@ template<typename T, typename R, typename... Args>
 struct UnbindImpl
 {
 	template<auto f>
-	static constexpr R impl(T* obj, Args... args)
-		noexcept(noexcept((obj->*f)(std::forward<Args>(args)...)))
+	static constexpr R impl(std::remove_reference_t<T>* obj, Args... args)
+		noexcept(noexcept((static_cast<T>(*obj).*f)(std::forward<Args>(args)...)))
 	{
-		return (obj->*f)(std::forward<Args>(args)...);
+		return (static_cast<T>(*obj).*f)(std::forward<Args>(args)...);
 	}
 };
 
@@ -315,28 +309,110 @@ namespace Callables
 using Detail::Callable;
 using Detail::CallableOf;
 
+/// using F = double (T::*)(int, char);
+/// using V = FunctorReturn<F>; // V == double
 using Detail::FunctorReturn;
+
+/// using F = double (T::*)(int, char);
+/// using V = FunctorClass<F>; // V == T
 using Detail::FunctorClass;
+
+/// using F = double (T::*)(int, char);
+/// using V = FunctorArguments<F>; // V == Types::TList<int, char>
 using Detail::FunctorArguments;
+
+/// using F = double (T::*)(int, char);
+/// using V = FunctorInvoker<F>; // V == double(int, char)
 using Detail::FunctorInvoker;
+
+/// template<typename R, typename... As> struct MyTemplate {};
+/// using F = double (T::*)(int, char);
+/// using V = Expand<F, MyTemplate>; // V == MyTemplate<double, int, char>
 using Detail::Expand;
+
+/// template<typename R, typename... As> struct MyTemplate {};
+/// using F = double (T::*)(int, char) const&;
+/// using V = ExpandClass<F, MyTemplate>; // V == MyTemplate<const T&, double, int, char>
 using Detail::ExpandClass;
 
+/// struct A { int foo(); };
+/// A& foo2();
+/// using R = ReturnOf<&A::foo>; // R == int
+/// using C2 = ClassOf<foo2>; // C2 == A&
 using Detail::ReturnOf;
+
+/// struct A { void foo() const&&; };
+/// A& foo2();
+/// using C = ClassOf<&A::foo>; // C == const A&&
+/// using C2 = ClassOf<foo2>; // C2 == void
 using Detail::ClassOf;
+
+/// struct A { void foo(int, char, double); };
+/// using As = Arguments<&A::foo>; // As == Types::TList<int, char, double>
 using Detail::ArgumentsOf;
+
+/// struct A { double foo(int, char); };
+/// using I = InvokerOf<&A::foo>; // I == double(int, char)
 using Detail::InvokerOf;
+
+/// template<typename R, typename... As> struct MyTemplate {};
+/// struct A { double foo(int, char); };
+/// using My = ExpandOf<&A::foo, MyTemplate>; // My == MyTemplate<double, int, char>
 using Detail::ExpandOf;
+
+/// template<typename T, typename R, typename... As> struct MyTemplate {};
+/// struct A { double foo(int, char) const&&; };
+/// using My = ExpandClassOf<&A::foo, MyTemplate>;
+/// // My == MyTemplate<const A&&, double, int, char>
 using Detail::ExpandClassOf;
 
 namespace cpo = Detail::cpo;
+
+/// auto generic = [...](auto...) -> auto {...};
+/// auto typed = generic | invokeAs<int(int)>;
+///	int r = typed(10); // int(generic(10));
 using cpo::invokeAs;
+
+/// [...](auto...) -> auto {...} | returnAs<int>
+///		=> [...](auto...) -> int {...}
 using cpo::returnAs;
+
+/// [...](auto...) -> auto {...} | argAs<int, int>
+///		=> [...](int, int) -> auto {...}
 using cpo::argAs;
+
 using Detail::typedLambda;
 
+/// https://www.modernescpp.com/index.php/visiting-a-std-variant-with-the-overload-pattern/
 using Detail::Visitor;
+
+/// https://en.wikipedia.org/wiki/Currying
+using Detail::curry;
+
+/// struct A { void foo(int, int); };
+/// A a;
+///
+/// auto foo = bind<&A::foo>(&a);
+/// foo(0, 1); // == a.foo(0, 1);
+/// static_assert(sizeof(foo) == sizeof(void*));
+///
+/// auto foo2 = bind(&a, &A::foo);
+/// foo2(0, 1); // == a.foo(0, 1);
+/// static_assert(sizeof(foo2) == 2 * sizeof(void*));
 using Detail::bind;
+
+/// struct A {
+///		void fn(int);
+///		void constFn(int) const;
+/// };
+///
+///	A a;
+///	constexpr auto fn = unbind<&A::fn>;
+/// fn(&a, 1); // == a.fn(1);
+///
+/// const A ca;
+/// constexpr auto cfn = unbind<&A::constFn>;
+/// cfn(&ca, 1); // == ca.constFn(1);
 using Detail::unbind;
 }
 

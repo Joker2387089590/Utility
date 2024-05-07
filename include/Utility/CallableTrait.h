@@ -248,6 +248,10 @@ constexpr auto curry(F&& f, Args&&... args1)
 	};
 }
 
+template<typename T> struct RefTrait { using type = T&; };
+template<typename T> struct RefTrait<T&&> { using type = T&&; };
+template<typename T> using ForceRef = typename RefTrait<T>::type;
+
 template<typename T, typename R, typename... As>
 struct BindImpl
 {
@@ -256,20 +260,20 @@ struct BindImpl
 	{
 		constexpr R operator()(As... args) const
 		{
-			return (static_cast<T>(*obj).*f)(std::forward<As>(args)...);
+			return std::invoke(f, static_cast<ForceRef<T>>(*obj), std::forward<As>(args)...);
 		}
 		Tr* const obj;
 	};
 
-	template<typename Tr>
+	template<typename F, typename Tr>
 	struct Func
 	{
 		constexpr R operator()(As... args) const
 		{
-			return (static_cast<T>(*obj).*f)(std::forward<As>(args)...);
+			return std::invoke(f, static_cast<ForceRef<T>>(*obj), std::forward<As>(args)...);
 		}
 		Tr* const obj;
-		R(T::* const f)(As...);
+		F f;
 	};
 };
 
@@ -285,7 +289,7 @@ template<typename T, typename F>
 constexpr auto bind(T* obj, F f) noexcept
 {
 	using Impl = typename Callable<F>::template ExpandClass<BindImpl>;
-	using Func = typename Impl::template Func<T>;
+	using Func = typename Impl::template Func<F, T>;
 	return Func{obj, f};
 }
 
@@ -293,15 +297,22 @@ template<typename T, typename R, typename... Args>
 struct UnbindImpl
 {
 	template<auto f>
-	static constexpr R impl(std::remove_reference_t<T>* obj, Args... args)
-		noexcept(noexcept((static_cast<T>(*obj).*f)(std::forward<Args>(args)...)))
+	struct Impl
 	{
-		return (static_cast<T>(*obj).*f)(std::forward<Args>(args)...);
-	}
+		constexpr R operator()(std::remove_reference_t<T>* obj, Args... args) const
+		{
+			return std::invoke(f, static_cast<ForceRef<T>>(*obj), std::forward<Args>(args)...);
+		}
+
+		constexpr R operator()(ForceRef<T> obj, Args... args) const
+		{
+			return std::invoke(f, static_cast<ForceRef<T>>(obj), std::forward<Args>(args)...);
+		}
+	};
 };
 
 template<auto memberFunc>
-constexpr auto unbind = ExpandClassOf<memberFunc, UnbindImpl>::template impl<memberFunc>;
+constexpr auto unbind = typename ExpandClassOf<memberFunc, UnbindImpl>::template Impl<memberFunc>{};
 }
 
 namespace Callables
@@ -409,6 +420,7 @@ using Detail::bind;
 ///	A a;
 ///	constexpr auto fn = unbind<&A::fn>;
 /// fn(&a, 1); // == a.fn(1);
+/// fn(a, 1);  // == a.fn(1);
 ///
 /// const A ca;
 /// constexpr auto cfn = unbind<&A::constFn>;

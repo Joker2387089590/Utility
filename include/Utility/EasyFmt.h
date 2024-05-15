@@ -34,18 +34,20 @@ auto print(std::FILE* file, Color color, const Char* str, std::size_t size)
 	return [file, color, f](auto&&... args) -> void {
 #ifndef EASY_FMT_NO_COLOR
 		fmt::print(file, color, f, fwd(args)...);
-#else
+#else // EASY_FMT_NO_COLOR
 		fmt::print(file, f, fwd(args)...);
-#endif
+#endif // EASY_FMT_NO_COLOR
 		fmt::print("\n");
 	};
 };
-#else
+#else // EASY_FMT_NO_CONSOLE
 inline constexpr auto print = [](auto&&...) { return [](auto&&...) -> void {}; };
-#endif
+#endif // EASY_FMT_NO_CONSOLE
 
 inline namespace Literals
 {
+using namespace fmt::literals;
+
 [[nodiscard]] constexpr auto operator""_fmt(const char* str, std::size_t size)
 {
 	return [f = std::string_view(str, size)](auto&&... args) constexpr {
@@ -96,38 +98,28 @@ inline namespace Literals
 
 [[nodiscard]] inline auto operator""_fatal(const char* str, std::size_t size)
 {
-	return [f = operator""_fmt(str, size)](auto&&... args) {
+	return [f = Literals::operator""_fmt(str, size)](auto&&... args) {
 		throw std::runtime_error(std::string(f(fwd(args)...)));
 	};
 }
 
 #ifndef EASY_FMT_NO_QT
-// qfmtImpl: workaround for MSVC bug
+// may have MSVC bug
 // https://developercommunity.visualstudio.com/t/ICE-when-importing-user-defined-literal/10095949
-
-[[nodiscard]] constexpr auto qfmtImpl(const char* str, std::size_t size)
-{
-	return [f = operator""_fmt(str, size)](auto&&... args) -> QString {
-		return QString::fromStdString(std::string(f(fwd(args)...)));
-	};
-}
-
-[[nodiscard]] constexpr auto qfmtImpl(const char16_t* str, std::size_t size)
-{
-	return [f = operator""_fmt(str, size)](auto&&... args) -> QString {
-		return QString::fromStdU16String(std::u16string(f(fwd(args)...)));
-	};
-}
 
 [[nodiscard]] constexpr auto operator""_qfmt(const char* str, std::size_t size)
 {
-	return qfmtImpl(str, size);
+	return [f = Literals::operator""_fmt(str, size)](auto&&... args) -> QString {
+		return QString::fromStdString(std::string(f(fwd(args)...)));
+	};
 }
 
 // QString is base on UTF-16, this overloaded is faster than the char-version
 [[nodiscard]] constexpr auto operator""_qfmt(const char16_t* str, std::size_t size)
 {
-	return qfmtImpl(str, size);
+	return [f = Literals::operator""_fmt(str, size)](auto&&... args) -> QString {
+		return QString::fromStdU16String(std::u16string(f(fwd(args)...)));
+	};
 }
 
 // mix QString with wchar_t seems strange...

@@ -6,13 +6,13 @@ template<typename Q>
 class VMap
 {
 public:
-	template<typename Qx> explicit VMap(Qx&& m) : m(std::forward<Qx>(m)) {}
-	auto begin()	{ return m.keyValueBegin(); }
-	auto end()		{ return m.keyValueEnd(); }
-	auto cbegin()	{ return std::as_const(m).keyValueBegin(); }
-	auto cend()		{ return std::as_const(m).keyValueEnd(); }
+	template<typename Qx> explicit VMap(Qx&& m) : m(static_cast<Q>(m)) {}
+	auto begin()  const { return m.keyValueBegin(); }
+	auto end()    const { return m.keyValueEnd(); }
+	auto cbegin() const { return std::as_const(m).keyValueBegin(); }
+	auto cend()   const { return std::as_const(m).keyValueEnd(); }
 private:
-	Q&& m;
+	Q m;
 };
 
 template<typename K, typename V> VMap(QMap<K, V>      &) -> VMap<QMap<K, V>&>;

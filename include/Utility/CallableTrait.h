@@ -313,7 +313,49 @@ struct UnbindImpl
 
 template<auto memberFunc>
 constexpr auto unbind = typename ExpandClassOf<memberFunc, UnbindImpl>::template Impl<memberFunc>{};
-}
+
+template<typename R, typename... Args>
+class FunctionRefImpl
+{
+public:
+	template<typename F>
+	FunctionRefImpl(F&& f) noexcept :
+		target{},
+		func([](Target target, Args&&... args) -> R {
+			auto of = static_cast<std::decay_t<F>*>(const_cast<void*>(target.obj));
+			return std::invoke(static_cast<F&&>(*of), std::forward<Args>(args)...);
+		})
+	{
+		target.obj = &f;
+	}
+
+	template<typename Rx, typename... Ax>
+	FunctionRefImpl(Rx(*f)(Ax...)) noexcept :
+		target{},
+		func([](Target target, Args&&... args) -> R {
+			return (Rx(*)(Ax...))(target.cfunc)(std::forward<Args>(args)...);
+		})
+	{
+		target.cfunc = (void(*)())(f);
+	}
+
+	R operator()(Args... args) const
+	{
+		return std::invoke(func, target, std::forward<Args>(args)...);
+	}
+
+private:
+	union Target {
+		const void* obj;
+		void(*cfunc)();
+	};
+	Target target;
+	R(*func)(Target, Args&&...);
+};
+
+template<typename F>
+using FunctionRef = Expand<F, FunctionRefImpl>;
+} // namespace Callables::Detail
 
 namespace Callables
 {
@@ -426,6 +468,10 @@ using Detail::bind;
 /// constexpr auto cfn = unbind<&A::constFn>;
 /// cfn(&ca, 1); // == ca.constFn(1);
 using Detail::unbind;
+
+/// double foo(FunctionRef<double(char))> f) { return f('0'); }
+/// double x = foo([](char c) -> double { return c + 1; }); // x == '0' + 1
+using Detail::FunctionRef;
 }
 
 #include <Utility/MacrosUndef.h>

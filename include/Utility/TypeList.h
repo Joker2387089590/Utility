@@ -277,7 +277,7 @@ struct TListBase
 	template<std::size_t s>
 	using Repeat = typename RepeatTrait<s, Helper<>, Helper<Ts...>>::type;
 
-	// TList<Ta, Ta, Tb, Tc, Tc> => TList<Ta, Tb, Tc>
+	// TList<Ta, Ta, Tb, Tc, Tc>::Unique => TList<Ta, Tb, Tc>
 	using Unique = typename UniqueTrait<Helper<>, Helper<Ts...>>::type;
 
 	static constexpr bool repeated = UniqueTrait<Helper<>, Helper<Ts...>>::size != sizeof...(Ts);

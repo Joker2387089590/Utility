@@ -49,19 +49,19 @@ public:
 	}
 
 public: // visit
-	template<typename... Fs>
+	template<int = 0, typename... Fs>
 	constexpr decltype(auto) visit(Fs&&... fs) &
     {
 		return std::visit(Visitor{fwd(fs)...}, self());
 	}
 
-	template<typename... Fs>
+	template<int = 0, typename... Fs>
 	constexpr decltype(auto) visit(Fs&&... fs) const&
     {
 		return std::visit(Visitor{fwd(fs)...}, self());
     }
 
-	template<typename... Fs>
+	template<int = 0, typename... Fs>
 	constexpr decltype(auto) visit(Fs&&... fs) &&
 	{
 		return std::visit(Visitor{fwd(fs)...}, static_cast<Base&&>(*this));
@@ -69,21 +69,46 @@ public: // visit
 
 public: // visitTo
 	template<typename T, typename... Fs>
-	[[nodiscard]] constexpr decltype(auto) visitTo(Fs&&... fs) &
+	[[deprecated("use visit to below")]] [[nodiscard]]
+	constexpr decltype(auto) visitTo(Fs&&... fs) &
 	{
 		using Callables::returnAs;
 		return std::visit(Visitor{(fwd(fs) | returnAs<T>)...}, self());
 	}
 
 	template<typename T, typename... Fs>
-	[[nodiscard]] constexpr decltype(auto) visitTo(Fs&&... fs) const&
+	[[deprecated("use visit to below")]] [[nodiscard]]
+	constexpr decltype(auto) visitTo(Fs&&... fs) const&
 	{
 		using Callables::returnAs;
 		return std::visit(Visitor{(fwd(fs) | returnAs<T>)...}, self());
 	}
 
 	template<typename T, typename... Fs>
-	[[nodiscard]] constexpr decltype(auto) visitTo(Fs&&... fs) &&
+	[[deprecated("use visit to below")]] [[nodiscard]]
+	constexpr decltype(auto) visitTo(Fs&&... fs) &&
+	{
+		using Callables::returnAs;
+		return std::visit(Visitor{(fwd(fs) | returnAs<T>)...}, self());
+	}
+
+public: // visit to
+	template<typename T, typename... Fs>
+	[[nodiscard]] constexpr decltype(auto) visit(Fs&&... fs) &
+	{
+		using Callables::returnAs;
+		return std::visit(Visitor{(fwd(fs) | returnAs<T>)...}, self());
+	}
+
+	template<typename T, typename... Fs>
+	[[nodiscard]] constexpr decltype(auto) visit(Fs&&... fs) const&
+	{
+		using Callables::returnAs;
+		return std::visit(Visitor{(fwd(fs) | returnAs<T>)...}, self());
+	}
+
+	template<typename T, typename... Fs>
+	[[nodiscard]] constexpr decltype(auto) visit(Fs&&... fs) &&
 	{
 		using Callables::returnAs;
 		return std::visit(Visitor{(fwd(fs) | returnAs<T>)...}, self());
@@ -183,7 +208,9 @@ using Variant = std::conditional_t<
 
 namespace Variants
 {
-using Detail::Visitor;
+/// extend c++17 std::variant by adding member functions:
+/// add visit (C++26)
+/// filter
 using Detail::Variant;
 }
 

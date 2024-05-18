@@ -321,11 +321,11 @@ template<typename R, typename... Args>
 class FunctionRefImpl
 {
 public:
-	template<typename Rx, typename... Ax, bool nothrow>
-	FunctionRefImpl(Rx(*f)(Ax...) noexcept(nothrow)) noexcept :
+	template<typename Rx, typename... Ax>
+	FunctionRefImpl(Rx(*f)(Ax...)) noexcept :
 		target(reinterpret_cast<void(*)()>(f)),
-		func([](Target target, Args&&... args) noexcept(nothrow && std::is_nothrow_constructible_v<R, Rx>) -> R {
-			return ((Rx(*)(Ax...) noexcept(nothrow))(target.cfunc))(std::forward<Args>(args)...);
+		func([](Target target, Args&&... args) -> R {
+			return ((Rx(*)(Ax...))(target.cfunc))(std::forward<Args>(args)...);
 		})
 	{}
 

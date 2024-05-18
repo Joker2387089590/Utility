@@ -25,6 +25,9 @@ struct SelectFunctor<T, true> { using type = typename IsFunctor<T>::type; };
 template<typename F>
 using FunctorType = typename SelectFunctor<F, IsFunctor<F>::value>::type;
 
+template<typename F>
+constexpr bool isFunction = std::is_function_v<std::remove_pointer_t<std::decay_t<F>>>;
+
 template<typename T, typename R, typename... Args>
 struct CallableImpl
 {
@@ -313,7 +316,59 @@ struct UnbindImpl
 
 template<auto memberFunc>
 constexpr auto unbind = typename ExpandClassOf<memberFunc, UnbindImpl>::template Impl<memberFunc>{};
-}
+
+template<typename R, typename... Args>
+class FunctionRefImpl
+{
+public:
+	template<typename Rx, typename... Ax, bool nothrow>
+	FunctionRefImpl(Rx(*f)(Ax...) noexcept(nothrow)) noexcept :
+		target(reinterpret_cast<void(*)()>(f)),
+		func([](Target target, Args&&... args) noexcept(nothrow && std::is_nothrow_constructible_v<R, Rx>) -> R {
+			return ((Rx(*)(Ax...) noexcept(nothrow))(target.cfunc))(std::forward<Args>(args)...);
+		})
+	{}
+
+	template<typename F, std::enable_if_t<!isFunction<F>, int> = 0>
+	constexpr FunctionRefImpl(F&& f) noexcept :
+		target(static_cast<const void*>(std::addressof(f))),
+		func([](Target target, Args&&... args) -> R {
+			auto of = static_cast<std::add_pointer_t<F>>(const_cast<void*>(target.obj));
+			return std::invoke(*of, std::forward<Args>(args)...);
+		})
+	{}
+
+	constexpr FunctionRefImpl(const FunctionRefImpl&) noexcept = default;
+	constexpr FunctionRefImpl& operator=(const FunctionRefImpl&) & noexcept = default;
+	constexpr FunctionRefImpl(FunctionRefImpl&&) noexcept = default;
+	constexpr FunctionRefImpl& operator=(FunctionRefImpl&&) & noexcept = default;
+
+	constexpr R operator()(Args... args) const
+	{
+		return std::invoke(func, target, std::forward<Args>(args)...);
+	}
+
+private:
+	union Target
+	{
+		constexpr explicit Target(const void* obj) noexcept : obj(obj) {}
+		constexpr explicit Target(void(*cfunc)()) noexcept : cfunc(cfunc) {}
+
+		const void* obj;
+		void(*cfunc)();
+	};
+	Target target;
+	R(*func)(Target, Args&&...);
+};
+
+template<typename F>
+using FunctionRef = Expand<F, FunctionRefImpl>;
+
+template<typename T>
+inline constexpr auto constructor = [](auto&&... args) {
+	return T(std::forward<decltype(args)>(args)...);
+};
+} // namespace Callables::Detail
 
 namespace Callables
 {
@@ -426,6 +481,18 @@ using Detail::bind;
 /// constexpr auto cfn = unbind<&A::constFn>;
 /// cfn(&ca, 1); // == ca.constFn(1);
 using Detail::unbind;
+
+/// double foo(FunctionRef<double(char))> f) { return f('0'); }
+/// double x = foo([](char c) -> double { return c + 1; }); // x == '0' + 1
+using Detail::FunctionRef;
+
+/// struct T1 { T1(int); T1(std::string); };
+/// struct T2 { T2(int); T2(std::string); };
+/// std::any fromInt(int i, FunctionRef<std::any(int)> f) { return f(i); }
+/// std::any fromStr(std::string s, FunctionRef<std::any(std::string)> f) { return f(s); }
+/// auto x = fromInt(0, constructor<T1>); // std::any x = T1(0);
+/// auto y = fromStr("str", constructor<T2>); // std::any y = T2("str");
+using Detail::constructor;
 }
 
 #include <Utility/MacrosUndef.h>

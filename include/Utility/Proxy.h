@@ -3,6 +3,7 @@
 #include <Utility/CallableTrait.h>
 
 // 参考 https://github.com/microsoft/proxy
+// 但它需要 C++20 支持，因此基于 C++17 重新实现其基本功能
 namespace Proxys::Detail
 {
 /// forward declaration

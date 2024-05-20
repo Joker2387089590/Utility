@@ -364,9 +364,20 @@ private:
 template<typename F>
 using FunctionRef = Expand<F, FunctionRefImpl>;
 
-template<typename T>
+template<typename T, bool useInitialList = false>
 inline constexpr auto constructor = [](auto&&... args) {
-	return T(std::forward<decltype(args)>(args)...);
+	if constexpr (useInitialList)
+		return T(std::forward<decltype(args)>(args)...);
+	else
+		return T{std::forward<decltype(args)>(args)...};
+};
+
+template<typename T, bool useInitialList = false>
+inline constexpr auto creator = [](auto&&... args) {
+	if constexpr (useInitialList)
+		return new T(std::forward<decltype(args)>(args)...);
+	else
+		return new T{std::forward<decltype(args)>(args)...};
 };
 } // namespace Callables::Detail
 
@@ -493,6 +504,7 @@ using Detail::FunctionRef;
 /// auto x = fromInt(0, constructor<T1>); // std::any x = T1(0);
 /// auto y = fromStr("str", constructor<T2>); // std::any y = T2("str");
 using Detail::constructor;
+using Detail::creator;
 }
 
 #include <Utility/MacrosUndef.h>

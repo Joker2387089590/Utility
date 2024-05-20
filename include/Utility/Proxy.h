@@ -135,9 +135,10 @@ struct FacadeTrait<P, Facade<Ds...>> { using Proxys = P<Ds...>; };
 template<typename... Ds>
 class ProxyImpl
 {
+public:
 	using Facades = Facade<Ds...>;
-	using VTable = const typename Facades::VTable;
-	template<typename... D> friend class UniqueProxyImpl;
+	using BaseProxy = ProxyImpl;
+
 public:
 	constexpr ProxyImpl() noexcept : object(nullptr), vptr(nullptr) {}
 
@@ -179,6 +180,9 @@ public:
 	constexpr T* as() const noexcept { return static_cast<T*>(object); }
 
 private:
+	using VTable = const typename Facades::VTable;
+	template<typename... D> friend class UniqueProxyImpl;
+
 	void* object;
 	VTable* vptr;
 };

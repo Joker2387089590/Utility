@@ -1,9 +1,8 @@
 #pragma once
-#include <utility> // std::forward, std::decay_t
+#include <functional>
 
 namespace RollBacks
 {
-template<typename F>
 class Cleanup
 {
 public:
@@ -20,14 +19,12 @@ public:
 	Cleanup& operator=(const Cleanup&) & = delete;
 
 public:
-    F f;
+	std::function<void()> f;
     bool doClean;
 };
 
-template<typename F> Cleanup(F&&) -> Cleanup<std::decay_t<F>>;
-
-template<typename... Fs>
-void resetCleans(Cleanup<Fs>&... clean)
+template<typename... Cs>
+void resetCleans(Cs&... clean)
 {
 	((clean.doClean = false), ...);
 }

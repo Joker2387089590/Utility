@@ -24,7 +24,7 @@ public:
 };
 
 template<typename... Cs>
-void resetCleans(Cs&... clean)
+void resetCleans(Cs&... clean) noexcept
 {
 	((clean.doClean = false), ...);
 }

@@ -7,26 +7,25 @@
 namespace Proxys::Detail
 {
 /// forward declaration
-template<typename... Ds> struct Facade;
-template<typename... Ds> class ProxyImpl;
-template<typename... Ds> class UniqueProxyImpl;
-template<template<typename...> typename P, typename F> struct FacadeTrait;
 
 template<typename F>
-using UniqueProxy = typename FacadeTrait<UniqueProxyImpl, F>::Proxys;
+struct Dispatch;
 
+template<typename... Ds>
+struct Facade;
+template<template<typename...> typename P, typename F>
+struct FacadeTrait;
+
+template<typename... Ds>
+class ProxyImpl;
 template<typename F>
 using Proxy = typename FacadeTrait<ProxyImpl, F>::Proxys;
 
-/// dispatch
-template<typename F> struct Dispatch;
-/**
- * @brief Dispatch 结构体模板定义了一个占位结构体，用于表示调度器。
- *  它接受一个函数类型作为模板参数。
- *
- * @tparam R
- * @tparam As
- */
+template<typename... Ds>
+class UniqueProxyImpl;
+template<typename F>
+using UniqueProxy = typename FacadeTrait<UniqueProxyImpl, F>::Proxys;
+
 template<typename R, typename... As>
 struct Dispatch<R(As...)>
 {
@@ -36,6 +35,25 @@ struct Dispatch<R(As...)>
 
 	template<typename T>
 	R operator()(T&& obj, As...) const = delete;
+};
+
+template<typename F>
+struct MemberDispatch final
+{
+	struct Impl : Dispatch<F>
+	{
+
+	};
+};
+
+template<typename... Ds>
+struct DxTable : Ds...
+{
+	template<typename D, typename... Args>
+	constexpr decltype(auto) operator()(Args&&... args) const
+	{
+		return D::operator()(std::forward<Args>(args)...);
+	}
 };
 
 /**
@@ -94,11 +112,6 @@ struct Unwrap
 		type;
 };
 
-/**
- * @brief Facade 结构体模板，用于生成多个分发器的外观。
- *
- * @tparam Ds 分发器类型参数包。
- */
 template<typename... Ds>
 struct Facade
 {
@@ -184,7 +197,7 @@ private:
 	template<typename... D> friend class UniqueProxyImpl;
 
 	void* object;
-	VTable* vptr;
+	const VTable* vptr;
 };
 
 /// unique proxy impl
@@ -335,8 +348,17 @@ namespace Proxys
 /// }
 /// } // UseProxy
 
+/// Dispatch
+/// @brief Dispatch 结构体模板定义了一个占位结构体，用于表示调度器。
+///  它接受一个函数类型作为模板参数。
+/// @tparam R
+/// @tparam As
 using Detail::Dispatch;
+
+/// @brief Facade 结构体模板，用于生成多个分发器的外观。
+/// @tparam Ds 分发器类型参数包。
 using Detail::Facade;
+
 using Detail::Proxy;
 using Detail::UniqueProxy;
 }

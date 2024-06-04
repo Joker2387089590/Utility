@@ -379,6 +379,25 @@ inline constexpr auto creator = [](auto&&... args) {
 	else
 		return new T{std::forward<decltype(args)>(args)...};
 };
+
+struct Apply
+{
+	template<typename F>
+	constexpr auto operator()(F&& f) const
+	{
+		return [f = std::forward<F>(f)](auto&& tuple) mutable {
+			return std::apply(f, std::forward<decltype(tuple)>(tuple));
+		};
+	}
+
+	template<typename F>
+	friend constexpr auto operator|(F&& f, const Apply& apply)
+	{
+		return apply(std::forward<F>(f));
+	}
+};
+
+inline constexpr Apply apply;
 } // namespace Callables::Detail
 
 namespace Callables
@@ -505,6 +524,8 @@ using Detail::FunctionRef;
 /// auto y = fromStr("str", constructor<T2>); // std::any y = T2("str");
 using Detail::constructor;
 using Detail::creator;
+
+using Detail::apply;
 }
 
 #include <Utility/MacrosUndef.h>

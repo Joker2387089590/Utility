@@ -1,3 +1,9 @@
+#ifdef UTILITY_MARCOS
+#error MacrosUndef.h was not included since last inclusion of Macros.h!
+#endif
+
+#define UTILITY_MARCOS
+
 #define fwd(arg) std::forward<decltype(arg)>(arg)
 
 #define DefaultClass(T)                     \
@@ -19,3 +25,4 @@
 	T& operator=(T&&) & noexcept = delete; \
 	T(const T&) = delete;                  \
 	T& operator=(const T&) & = delete;     \
+

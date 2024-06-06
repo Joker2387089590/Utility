@@ -67,6 +67,12 @@ if(fmt_FOUND)
 		list(APPEND definitions EASY_FMT_NO_QT)
 	endif()
 
+	set(UTILITY_EASYFMT_PRINT_COLOR "aqua" CACHE STRING "fmt::print stdout color")
+	list(APPEND definitions UTILITY_EASYFMT_PRINT_COLOR=${UTILITY_EASYFMT_PRINT_COLOR})
+
+	set(UTILITY_EASYFMT_ERROR_COLOR "crimson" CACHE STRING "fmt::print stderr color")
+	list(APPEND definitions UTILITY_EASYFMT_ERROR_COLOR=${UTILITY_EASYFMT_ERROR_COLOR})
+
 	list(APPEND sources EasyFmt.h)
 	list(APPEND link_libs fmt::fmt)
 endif()

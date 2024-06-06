@@ -88,12 +88,12 @@ using namespace fmt::literals;
 
 [[nodiscard]] inline auto operator""_print(const char* str, std::size_t size)
 {
-	return EasyFmts::print(stdout, fg(fmt::color::aqua), str, size);
+	return EasyFmts::print(stdout, fg(fmt::color::UTILITY_EASYFMT_PRINT_COLOR), str, size);
 }
 
 [[nodiscard]] inline auto operator""_err(const char* str, std::size_t size)
 {
-	return EasyFmts::print(stderr, fg(fmt::color::crimson), str, size);
+	return EasyFmts::print(stderr, fg(fmt::color::UTILITY_EASYFMT_ERROR_COLOR), str, size);
 }
 
 [[nodiscard]] inline auto operator""_fatal(const char* str, std::size_t size)

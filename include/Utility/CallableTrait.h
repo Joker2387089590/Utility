@@ -280,21 +280,32 @@ struct BindImpl
 	};
 };
 
-template<auto f, typename T>
-constexpr auto bind(T* obj) noexcept
+template<auto f>
+struct Bind
 {
-	using Impl = typename CallableOf<f>::template ExpandClass<BindImpl>;
-	using Func = typename Impl::template ZeroCostFunc<f, T>;
-	return Func{obj};
-}
+	template<typename T>
+	constexpr auto operator()(T* obj) const noexcept
+	{
+		using Impl = typename CallableOf<f>::template ExpandClass<BindImpl>;
+		using Func = typename Impl::template ZeroCostFunc<f, T>;
+		return Func{obj};
+	}
+};
 
-template<typename T, typename F>
-constexpr auto bind(T* obj, F f) noexcept
+template<>
+struct Bind<0>
 {
-	using Impl = typename Callable<F>::template ExpandClass<BindImpl>;
-	using Func = typename Impl::template Func<F, T>;
-	return Func{obj, f};
-}
+	template<typename T, typename F>
+	constexpr auto operator()(T* obj, F f) const noexcept
+	{
+		using Impl = typename Callable<F>::template ExpandClass<BindImpl>;
+		using Func = typename Impl::template Func<F, T>;
+		return Func{obj, f};
+	}
+};
+
+template<auto f = 0>
+inline constexpr auto bind = Bind<f>{};
 
 template<typename T, typename R, typename... Args>
 struct UnbindImpl

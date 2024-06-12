@@ -1,6 +1,6 @@
 #pragma once
-#include <utility> // std::forward
 #include <tuple>   // std::forward_as_tuple
+#include <functional>
 
 namespace Lazys
 {
@@ -51,7 +51,24 @@ auto lazy(CtorTag, Args&&... args)
         }, as);
     });
 }
-}
+
+template<typename T>
+class LazyValue
+{
+public:
+	LazyValue(std::function<T()>) : f(std::move(f)) {}
+
+	template<typename V, std::enable_if_t<std::is_convertible_v<V, T>, int> = 0>
+	LazyValue(V v) :
+		f([v = std::move(v)]() mutable -> decltype(auto) { return std::move(v); })
+	{}
+
+	operator T() const { return f(); }
+
+private:
+	std::function<T()> f;
+};
+} // namespace Lazys
 
 // 前向兼容
 namespace LazyGenerator = Lazys;

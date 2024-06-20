@@ -2,10 +2,10 @@
 #ifndef EASY_FMT_H
 #define EASY_FMT_H
 
-#include <vector>
 #include <stdexcept>
 #include <string_view>
 #include <fmt/format.h>
+#include <fmt/compile.h>
 #include <fmt/xchar.h>
 #include <fmt/color.h>
 
@@ -17,7 +17,6 @@
 
 namespace EasyFmts
 {
-// fmt::runtime has just overloaded std::string_view/wstring_view, why???
 template<typename Char, typename... T>
 inline auto vformat(std::basic_string_view<Char> f, T&&... args)
 {
@@ -58,6 +57,7 @@ using namespace fmt::literals;
 	};
 }
 
+// fmt::runtime has just overloaded std::string_view/wstring_view, why???
 [[nodiscard]] constexpr auto operator""_fmt(const char16_t* str, std::size_t size)
 {
 	return [f = std::u16string_view(str, size)](auto&&... args) constexpr {

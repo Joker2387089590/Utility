@@ -213,6 +213,8 @@ class UniqueProxyImpl : public ProxyImpl<Destroy, Ds...>
 	using Base = ProxyImpl<Destroy, Ds...>;
 	template<typename... D> friend class UniqueProxyImpl;
 public:
+	using BaseProxy = UniqueProxyImpl;
+
 	constexpr UniqueProxyImpl() noexcept : Base() {}
 	constexpr UniqueProxyImpl(std::nullptr_t) noexcept : Base() {}
 

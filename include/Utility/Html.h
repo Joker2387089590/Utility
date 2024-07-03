@@ -33,7 +33,7 @@ struct HasStrTrait<T, std::void_t<
 template<typename T>
 constexpr bool hasStr = HasStrTrait<std::decay_t<T>>::value;
 
-// is attribute
+// T is attribute when T has a member 'name' and a member 'value'
 template<typename T, typename = void>
 struct IsAttributeTrait : std::false_type {};
 template<typename T>
@@ -151,6 +151,10 @@ struct Element
 	struct IsElement {};
 
 	explicit Element(std::string_view tag) : tag(tag), attributes() {}
+	Element(const Element&) = default;
+	Element& operator=(const Element&) & = default;
+	Element(Element&&) = default;
+	Element& operator=(Element&&) & = default;
 
 	auto content() const = delete;
 
@@ -187,7 +191,7 @@ struct Element
 		static_assert(AlwaysFalse<T>{}, "attribute literal hasn't been assigned!");
 	}
 
-	const std::string_view tag;
+	std::string_view tag;
 	std::unordered_map<std::string, AttributeValue> attributes;
 };
 

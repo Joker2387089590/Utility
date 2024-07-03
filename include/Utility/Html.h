@@ -16,6 +16,14 @@
 #  endif
 #endif
 
+// something recommended to learn about before going on:
+//   std::void_t
+//     https://stackoverflow.com/questions/27687389/how-do-we-use-void-t-for-sfinae
+//   cpo
+//     https://zh.cppreference.com/w/cpp/ranges/cpo
+//   CRTP
+//     https://zh.cppreference.com/w/cpp/language/crtp
+
 namespace Htmls
 {
 using namespace std::literals;
@@ -24,54 +32,82 @@ using namespace std::literals;
 template<typename T> std::string str(T&& element);
 template<typename...> struct AlwaysFalse : std::false_type {};
 
-// has str
+// has member str
 template<typename T, typename = void>
 struct HasStrTrait : std::false_type {};
+
 template<typename T>
 struct HasStrTrait<T, std::void_t<
 	decltype(std::declval<T>().str())>> : std::true_type {};
+
 template<typename T>
 constexpr bool hasStr = HasStrTrait<std::decay_t<T>>::value;
 
 // is attribute
 template<typename T, typename = void>
 struct IsAttributeTrait : std::false_type {};
+
 template<typename T>
 struct IsAttributeTrait<T, std::void_t<
 	decltype(std::declval<T>().name()),
 	decltype(std::declval<T>().value())>> : std::true_type {};
+
 template<typename T>
 constexpr bool isAttribute = IsAttributeTrait<std::decay_t<T>>::value;
 
-// is string
-struct AsStr {} inline constexpr asStr;
+// as str
+template<typename T> struct AsStr;
 
+template<typename T>
+std::string asStr(T&& str) { return AsStr<std::decay_t<T>>{}.to(std::forward<T>(str)); }
+
+// is string
 template<typename T, typename = void>
 struct IsString : std::false_type {};
-template<typename T>
-struct IsString<T, std::void_t<decltype(asStr | std::declval<T>())>> : std::true_type {};
+
+template<typename T> // HINT: sizeof operator rejects incomplete types
+struct IsString<T, std::void_t<decltype(sizeof(AsStr<std::decay_t<T>>))>> : std::true_type {};
+
 template<typename T>
 constexpr bool isString = IsString<T>::value;
 
-inline std::string operator|(AsStr, std::string str) { return str; }
-inline std::string operator|(AsStr, std::string_view str) { return std::string(str); }
-inline std::string operator|(AsStr, const char* str) { return std::string(str); }
+// specifications of AsStr for types that used frequently
+template<>
+struct AsStr<std::nullptr_t> { static std::string to(std::nullptr_t) = delete; };
+
+template<>
+struct AsStr<std::string> { static std::string to(std::string str) { return str; } };
+
+template<>
+struct AsStr<std::string_view> { static std::string to(std::string_view str) { return std::string{str}; } };
+
+template<>
+struct AsStr<const char*> { static std::string to(const char* str) { return str; } };
 
 #ifndef UTILITY_HTML_NO_QT
-inline std::string operator|(AsStr, const QString& qs) { return qs.toStdString(); }
-inline std::string operator|(AsStr, const QVariant& v) { return v.toString().toStdString(); }
-inline std::string operator|(AsStr, const QJsonValue& v) { return v.toVariant().toString().toStdString(); }
-inline std::string operator|(AsStr, QJsonValueRef v) { return v.toVariant().toString().toStdString(); }
-inline std::string operator|(AsStr, QJsonValueConstRef v) { return v.toVariant().toString().toStdString(); }
-#endif
+template<>
+struct AsStr<QString> { static std::string to(const QString& qs) { return qs.toStdString(); } };
 
-void operator|(AsStr, std::nullptr_t) = delete;
+template<>
+struct AsStr<QVariant> { static std::string to(const QVariant& v) { return v.toString().toStdString(); } };
+
+template<>
+struct AsStr<QJsonValue> { static std::string to(const QJsonValue& v) { return v.toVariant().toString().toStdString(); } };
+
+template<>
+struct AsStr<QJsonValueRef> { static std::string to(QJsonValueRef v) { return v.toVariant().toString().toStdString(); } };
+
+template<>
+struct AsStr<QJsonValueConstRef> { static std::string to(QJsonValueConstRef v) { return v.toVariant().toString().toStdString(); } };
+#endif
 
 // is element
 template<typename T, typename = void>
 struct IsElementTrait : std::false_type {};
+
 template<typename T>
 struct IsElementTrait<T, std::void_t<typename T::IsElement>> : std::true_type {};
+
 template<typename T>
 constexpr bool isElement = IsElementTrait<std::decay_t<T>>::value;
 
@@ -151,6 +187,20 @@ struct Element
 	struct IsElement {};
 
 	explicit Element(std::string_view tag) : tag(tag), attributes() {}
+	Element(const Element& other) : tag(other.tag), attributes(other.attributes) {}
+	Element(Element&& other) noexcept : tag(other.tag), attributes(std::move(other.attributes)) {}
+
+	Element& operator=(const Element& other) &
+	{
+		assert(tag == other.tag);
+		attributes = other.attributes;
+	}
+
+	Element& operator=(Element&& other) & noexcept
+	{
+		assert(tag == other.tag);
+		attributes = std::move(other.attributes);
+	}
 
 	auto content() const = delete;
 
@@ -249,12 +299,7 @@ std::string str(T&& element)
 	if constexpr (hasStr<T>)
 		return std::forward<T>(element).str();
 	else if constexpr (isString<T>)
-	{
-		// overload operator for name-lookup
-		// which is 'the dark sides of the inner workings of C++'
-		// put your overloads into global namespace when this line cannot be compiled.
-		return asStr | std::forward<T>(element);
-	}
+		return asStr(std::forward<T>(element));
 	else if constexpr (isElement<T>)
 	{
 		if(element.attributes.empty())
@@ -519,7 +564,7 @@ struct Meta final : EmptyElement<Meta>
 inline constexpr FunctionStyle<Meta> meta;
 
 /// attr: style
-/// TODO: CSS
+/// TODO: wrap CSS
 struct Style final
 {
 	static std::string_view name() { return "style"sv; }

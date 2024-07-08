@@ -409,6 +409,19 @@ struct Apply
 };
 
 inline constexpr Apply apply;
+
+template<typename F>
+struct IsVariadic : std::false_type {};
+
+template<typename R, typename... Args>
+struct IsVariadic<R(Args..., ...)> : std::true_type {};
+
+template<auto f>
+inline constexpr bool isVariadic = IsVariadic<
+	std::remove_pointer_t<
+		std::decay_t<decltype(f)>
+	>
+>::value;
 } // namespace Callables::Detail
 
 namespace Callables
@@ -537,6 +550,8 @@ using Detail::constructor;
 using Detail::creator;
 
 using Detail::apply;
+
+using Detail::isVariadic;
 }
 
 #include <Utility/MacrosUndef.h>

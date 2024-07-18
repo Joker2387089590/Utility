@@ -6,10 +6,12 @@ namespace RollBacks
 class Cleanup
 {
 public:
+	explicit Cleanup() : f{}, doClean(false) {}
+
     template<typename Fi>
     Cleanup(Fi&& f) : f(std::forward<Fi>(f)), doClean(true) {}
 
-    ~Cleanup() { if(doClean) f(); }
+	~Cleanup() { if(doClean && f) f(); }
 
 	Cleanup(Cleanup&&) = default;
 	Cleanup& operator=(Cleanup&&) & = default;

@@ -134,10 +134,14 @@ using namespace fmt::literals;
 // mix QString with wchar_t seems strange...
 auto operator""_qfmt(const wchar_t* str, std::size_t size) = delete;
 
+using fmt::literals::operator""_a;
+
+#if !FMT_USE_NONTYPE_TEMPLATE_ARGS
 // NOTE: this use something in fmt::detail
 constexpr auto operator""_a(const char16_t* s, std::size_t) -> fmt::detail::udl_arg<char16_t> {
 	return {s};
 }
+#endif
 
 #endif
 } // namespace Literals

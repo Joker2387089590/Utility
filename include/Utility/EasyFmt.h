@@ -17,20 +17,20 @@
 
 namespace EasyFmts
 {
-template<typename Char, typename... T>
-inline auto vformat(std::basic_string_view<Char> f, T&&... args)
-{
-	using Context = fmt::buffer_context<Char>;
-	auto ff = fmt::basic_string_view<Char>(f);
-	return fmt::vformat(ff, fmt::make_format_args<Context>(args...));
-}
+// template<typename Char, typename... T>
+// inline auto vformat(std::basic_string_view<Char> f, T&&... args)
+// {
+// 	using Context = fmt::buffered_context<Char>;
+// 	auto ff = fmt::basic_string_view<Char>(f);
+// 	return fmt::vformat(ff, fmt::make_format_args<Context>(args...));
+// }
 
 #ifndef EASY_FMT_NO_CONSOLE
 template<typename Char, typename Color>
-auto print(std::FILE* file, Color color, const Char* str, std::size_t size)
+constexpr auto print(std::FILE* file, Color color, const Char* str, std::size_t size)
 {
-	auto f = std::basic_string_view<Char>{str, size};
-	return [file, color, f](auto&&... args) -> void {
+	return [=](auto&&... args) -> void {
+		auto f = fmt::runtime(fmt::basic_string_view<Char>(str, size));
 #ifndef EASY_FMT_NO_COLOR
 		fmt::print(file, color, f, fwd(args)...);
 #else // EASY_FMT_NO_COLOR
@@ -60,11 +60,11 @@ using namespace fmt::literals;
 // fmt::runtime has just overloaded std::string_view/wstring_view, why???
 [[nodiscard]] constexpr auto operator""_fmt(const char16_t* str, std::size_t size)
 {
-	return [f = std::u16string_view(str, size)](auto&&... args) constexpr {
+	return [str, size](auto&&... args) constexpr {
 		if constexpr (sizeof...(args) == 0)
-			return f;
+			return std::u16string_view(str, size);
 		else
-			return vformat(f, fwd(args)...);
+			return fmt::format(fmt::basic_string_view<char16_t>(str, size), fwd(args)...);
 	};
 }
 

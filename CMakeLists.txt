@@ -90,7 +90,7 @@ if(fmt_FOUND)
 	set(UTILITY_EASYFMT_ERROR_COLOR "crimson" CACHE STRING "fmt::print stderr color")
 	list(APPEND definitions UTILITY_EASYFMT_ERROR_COLOR=${UTILITY_EASYFMT_ERROR_COLOR})
 
-	set(UTILITY_EASYFMT_LINK_LIB "fmt::fmt" CACHE STRING "library to link for fmt")
+	set(UTILITY_EASYFMT_LINK_LIB "fmt::fmt-header-only" CACHE STRING "library to link for fmt")
 	
 	list(APPEND sources EasyFmt.h)
 	list(APPEND link_libs ${UTILITY_EASYFMT_LINK_LIB})

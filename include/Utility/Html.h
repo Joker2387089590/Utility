@@ -3,6 +3,7 @@
 #include <array>
 #include <cassert>
 #include <fmt/format.h>
+#include <fmt/ranges.h>
 
 #ifndef UTILITY_HTML_NO_QT
 #  include <QVariant>

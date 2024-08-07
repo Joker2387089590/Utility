@@ -30,7 +30,7 @@ template<typename Char, typename Color>
 constexpr auto print(std::FILE* file, Color color, const Char* str, std::size_t size)
 {
 	return [=](auto&&... args) -> void {
-		auto f = fmt::runtime(fmt::basic_string_view<Char>(str, size));
+		auto f = fmt::basic_string_view<Char>(str, size);
 #ifndef EASY_FMT_NO_COLOR
 		fmt::print(file, color, f, fwd(args)...);
 #else // EASY_FMT_NO_COLOR

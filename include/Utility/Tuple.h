@@ -3,15 +3,7 @@
 #include <functional> // ref
 #include <tuple>
 #include "TypeList.h"
-
-#define fwd(arg) std::forward<decltype(arg)>(arg)
-
-#define DefaultClass(T)                  \
-	T(T&&) = default;                    \
-	T(const T&) = default;               \
-	T& operator=(const T&) & = default;  \
-	T& operator=(T&&) & = default;       \
-	~T() = default;                      \
+#include "Macros.h"
 
 namespace Tuples::Detail
 {
@@ -377,77 +369,4 @@ namespace Tuples
 using Detail::Tuple, Detail::makeTuple, Detail::isTuple;
 }
 
-namespace Tuples::StdDetail // TODO: impl std derived
-{
-template<typename... Ts>
-class Tuple : public std::tuple<Ts...>
-{
-	using Base = std::tuple<Ts...>;
-	using TList = Types::TList<Ts...>;
-
-public:
-	using Base::Base;
-	using Base::operator=;
-	Tuple(const Tuple&) = default;
-	Tuple& operator=(const Tuple&) & = default;
-	Tuple(Tuple&&) noexcept = default;
-	Tuple& operator=(Tuple&&) & noexcept = default;
-	~Tuple() = default;
-
-public:
-	operator decltype(auto)() &       noexcept { return static_cast<Base&       >(*this); }
-	operator decltype(auto)() const&  noexcept { return static_cast<const Base& >(*this); }
-	operator decltype(auto)() &&      noexcept { return static_cast<Base&&      >(*this); }
-	operator decltype(auto)() const&& noexcept { return static_cast<const Base&&>(*this); }
-private:
-	decltype(auto) self() &       noexcept { return static_cast<Base&       >(*this); }
-	decltype(auto) self() const&  noexcept { return static_cast<const Base& >(*this); }
-	decltype(auto) self() &&      noexcept { return static_cast<Base&&      >(*this); }
-	decltype(auto) self() const&& noexcept { return static_cast<const Base&&>(*this); }
-
-private:
-	template<typename F, typename Self>
-	static constexpr auto mapImpl(F&& f, Self&& self)
-	{
-		return std::apply([&f](auto&&... ts) { return Tuple{f(fwd(ts))...}; },
-						  fwd(self));
-	}
-
-	static constexpr auto tieHelper = [](auto& t) noexcept -> auto& { return t; };
-
-	template<typename... To, std::size_t... is, std::size_t... os>
-	auto appendImpl(const Tuple<To...>& other, std::index_sequence<is...>, std::index_sequence<os...>) const
-	{
-		return Tuple<Ts..., To...>(this->get<is>()..., other.template get<is>()...);
-	}
-
-public:
-	template<typename F> constexpr auto map(F&& f) &       { return Tuple::mapImpl(fwd(f), this->self()); }
-	template<typename F> constexpr auto map(F&& f) const&  { return Tuple::mapImpl(fwd(f), this->self()); }
-	template<typename F> constexpr auto map(F&& f) &&      { return Tuple::mapImpl(fwd(f), this->self()); }
-	template<typename F> constexpr auto map(F&& f) const&& { return Tuple::mapImpl(fwd(f), this->self()); }
-
-public:
-	auto tie() &       noexcept { return this->map(tieHelper); }
-	auto tie() const&  noexcept { return this->map(tieHelper); }
-	auto tie() &&      noexcept = delete;
-	auto tie() const&& noexcept = delete;
-
-public:
-	template<std::size_t i> decltype(auto) get() &       { return std::get<i>(this->self()); }
-	template<std::size_t i> decltype(auto) get() const&  { return std::get<i>(this->self()); }
-	template<std::size_t i> decltype(auto) get() &&      { return std::get<i>(this->self()); }
-	template<std::size_t i> decltype(auto) get() const&& { return std::get<i>(this->self()); }
-
-public:
-	template<typename... To>
-	Tuple<Ts..., To...> operator+(const Tuple<To...>& other) const
-	{
-
-	}
-};
-
-}
-
-#undef fwd
-#undef DefaultClass
+#include "MacrosUndef.h"

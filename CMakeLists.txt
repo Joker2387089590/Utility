@@ -127,7 +127,10 @@ endif()
 option(UTILITY_USE_NLOHMANN_JSON_QT "use nlohmann json wrapper" ${UTILITY_USE_NLOHMANN_JSON_QT_DEFAULT})
 if(UTILITY_USE_NLOHMANN_JSON_QT)
 	list(APPEND sources NlohmannQt.h)
-	list(APPEND link_libs nlohmann_json::nlohmann_json)
+	list(APPEND link_libs 
+		nlohmann_json::nlohmann_json
+		${UTILITY_Qt}::Core
+	)
 endif()
 
 # convert Qt JSON and Protobuf Struct
@@ -141,6 +144,22 @@ if(UTILITY_USE_PROTOBUF_QT)
 	list(APPEND sources ProtobufQt.h)
 	list(APPEND link_libs 
 		protobuf::libprotobuf
+		${UTILITY_Qt}::Core
+	)
+endif()
+
+# convert nlohmann json and Protobuf Struct
+if(${Protobuf_FOUND} AND ${nlohmann_json_FOUND})
+	set(UTILITY_USE_NLOHMANN_JSON_PROTOBUF_DEFAULT ON)
+else()
+	set(UTILITY_USE_NLOHMANN_JSON_PROTOBUF_DEFAULT OFF)
+endif()
+option(UTILITY_USE_NLOHMANN_JSON_PROTOBUF "conversion between protobuf Struct and nlohmann json" ${UTILITY_USE_NLOHMANN_JSON_PROTOBUF_DEFAULT})
+if(UTILITY_USE_NLOHMANN_JSON_PROTOBUF)
+	list(APPEND sources NlohmannProtobuf.h)
+	list(APPEND link_libs
+		protobuf::libprotobuf
+		nlohmann_json::nlohmann_json
 	)
 endif()
 

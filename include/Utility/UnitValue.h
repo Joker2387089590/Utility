@@ -11,7 +11,8 @@ inline constexpr QStringView unitSetStr(unitSet);
 inline constexpr int unitExpValue[] = { -15, -12, -9, -6, -3, 0, 3, 6, 9 };
 inline constexpr double unitPower[] = { 1e-15, 1e-12, 1e-9, 1e-6, 1e-3, 1, 1e3, 1e6, 1e9 };
 
-inline constexpr double powerOf(QChar c) {
+inline constexpr double powerOf(QChar c)
+{
 	if(c == QChar(u'\0'))
 		return 1;
 	else
@@ -43,24 +44,25 @@ public:
 		if(ok) value = num * power;
 	}
 
-	operator QString()	const { return str(); }
-	operator double()	const { return value; }
+	int exp()      const { return (value == 0.) ? 0. : std::floor(std::log10(std::abs(value))); }
+	int unitExp()  const { return std::clamp(exp(), -15, 9); }
 
-	int exp()       const { return (value == 0.) ? 0. : std::floor(std::log10(std::abs(value))); }
-	int unitExp()   const { return std::min(std::max(exp(), -15), 9); }
-
-	QChar unit()    const { return unitSet[int(std::floor(unitExp() / 3.)) + 5]; }
-	double count()  const { return value * std::pow(10, std::ceil(-unitExp() / 3.) * 3); }
+	QChar unit()   const { return unitSet[unitExp() / 3 + 5]; }
+	double count() const { return value * std::pow(10, std::ceil(-unitExp() / 3.) * 3); }
 
 	QString str(char format = 'f', int precision = 3) const
 	{
         const QChar units[2]{unit(), '\0'};
         return QString::number(count(), format, precision) + QString(units);
 	}
+
 	QString addUnit(QString u, char format = 'f', int precision = 3)
 	{
 		return this->str(format, precision) + u;
 	}
+
+	operator QString()	const { return str(); }
+	operator double()	const { return value; }
 
 public:
 	double value;

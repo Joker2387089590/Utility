@@ -4,9 +4,9 @@
 // 在调用线程创建一个事件循环，并等待一个信号发送再返回
 // flag 可以决定，在 loop::exec 期间，本线程的不同种类信号，可否触发它连接的槽
 // 注意可能发生死锁或竞争
-template<typename T, typename... Args>
+template<typename T, typename B, typename... Args>
 auto WaitForSignal(T* sender,
-				   void(T::*signal)(Args...),
+				   void(B::*signal)(Args...),
 				   QEventLoop::ProcessEventsFlag flag = QEventLoop::ExcludeUserInputEvents)
 {
 	QEventLoop loop;

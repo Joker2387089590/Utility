@@ -290,6 +290,8 @@ struct Container
 
 	auto content() const { return fmt::join(this->items, ""); }
 
+	std::size_t size() const noexcept { return items.size(); }
+
 	std::vector<std::string> items;
 };
 
@@ -337,21 +339,60 @@ struct fmt::formatter<std::pair<const std::string, Htmls::AttributeValue>>
 
 namespace Htmls
 {
-/// <br>
-struct LineBreak final : EmptyElement<LineBreak>
-{
-	LineBreak() : EmptyElement("br"sv) {}
-};
+/// helper macros
+#define UTILITY_HTML_LITERAL(Class, Tag)                              \
+	inline auto operator""_##Tag(const char* str, std::size_t size) { \
+		return Class({str, size});                                    \
+	}                                                                 \
 
-inline constexpr FunctionStyle<LineBreak> br;
+#define UTILITY_HTML_FUNCTOR(Class, Tag) inline constexpr FunctionStyle<Class> Tag;
+
+#define UTILITY_HTML_EMPTY_ELEMENT(Class, Tag) \
+	struct Class final : EmptyElement<Class>   \
+	{                                          \
+		Class() : EmptyElement(#Tag##sv) {}    \
+	};                                         \
+	UTILITY_HTML_FUNCTOR(Class, Tag)           \
+
+#define UTILITY_HTML_ELEMENT_OPERATORS(Class) \
+	using Element<Class>::operator();         \
+	using Element<Class>::operator[];         \
+
+#define UTILITY_HTML_CONTENT_OPERATORS(Class) \
+	UTILITY_HTML_ELEMENT_OPERATORS(Class)     \
+	using Content<Class>::content;            \
+	using Content<Class>::operator[];         \
+
+#define UTILITY_HTML_CONTENT_CLASS(Class, Tag)                        \
+	struct Class final : public Element<Class>, public Content<Class> \
+	{                                                                 \
+		Class(std::string content = {}) :                             \
+			Element<Class>(#Tag##sv),                                 \
+			Content<Class>(std::move(content))                        \
+		{}                                                            \
+		UTILITY_HTML_CONTENT_OPERATORS(Class)                         \
+	};                                                                \
+	UTILITY_HTML_FUNCTOR(Class, Tag)                                  \
+	UTILITY_HTML_LITERAL(Class, Tag)                                  \
+
+#define UTILITY_HTML_CONTAINER_OPERATORS(Class) \
+	UTILITY_HTML_ELEMENT_OPERATORS(Class)       \
+	using Container<Class>::content;            \
+	using Container<Class>::operator[];         \
+
+#define UTILITY_HTML_CONTAINER_CLASS(Class, Tag)                  \
+	struct Class final : Element<Class>, Container<Class>         \
+	{                                                             \
+		Class() : Element<Class>(#Tag##sv), Container<Class>() {} \
+		UTILITY_HTML_CONTAINER_OPERATORS(Class)                   \
+	};                                                            \
+	UTILITY_HTML_FUNCTOR(Class, Tag)                              \
+
+/// <br>
+UTILITY_HTML_EMPTY_ELEMENT(LineBreak, br);
 
 /// <hr>
-struct HorizontalRule final : EmptyElement<HorizontalRule>
-{
-	HorizontalRule() : EmptyElement("hr"sv) {}
-};
-
-inline constexpr FunctionStyle<HorizontalRule> hr;
+UTILITY_HTML_EMPTY_ELEMENT(HorizontalRule, hr);
 
 /// <img>
 struct Image final : EmptyElement<Image>
@@ -383,10 +424,7 @@ struct Heading final : Element<Heading<l>>, Content<Heading<l>>
 		Content<Heading<level>>(std::move(content))
 	{}
 
-	using Element<Heading>::operator();
-	using Element<Heading>::operator[];
-	using Content<Heading>::content;
-	using Content<Heading>::operator[];
+	UTILITY_HTML_CONTENT_OPERATORS(Heading);
 };
 
 template<int level>
@@ -410,88 +448,43 @@ inline constexpr auto h5 = FunctionStyle<Heading<5>>{};
 inline constexpr auto h6 = FunctionStyle<Heading<6>>{};
 
 /// <p>
-struct Paragraph final : Element<Paragraph>, Content<Paragraph>
-{
-	Paragraph(std::string content = {}) : ElementBase("p"sv), ContentBase(std::move(content)) {}
-	using ElementBase::operator();
-	using ElementBase::operator[];
-	using Content::operator[];
-	using Content::content;
-};
-
-inline auto operator""_p(const char* str, std::size_t size) { return Paragraph({str, size}); }
-inline constexpr FunctionStyle<Paragraph> p;
+UTILITY_HTML_CONTENT_CLASS(Paragraph, p);
 
 /// <pre>
-struct Preformatted final : Element<Preformatted>, Content<Preformatted>
-{
-	Preformatted(std::string content = {}) : ElementBase("pre"sv), ContentBase(std::move(content)) {}
-	using ElementBase::operator();
-	using ElementBase::operator[];
-	using Content::operator[];
-	using Content::content;
-};
-
-inline auto operator""_pre(const char* str, std::size_t size) { return Preformatted({str, size}); }
-inline constexpr FunctionStyle<Preformatted> pre;
+UTILITY_HTML_CONTENT_CLASS(Preformatted, pre);
 
 /// <div>
-struct Div final : Element<Div>, Container<Div>
-{
-	Div() : ElementBase("div"sv), ContainerBase() {}
-	using ElementBase::operator();
-	using ElementBase::operator[];
-	using ContainerBase::content;
-	using ContainerBase::operator[];
-};
-
-inline constexpr FunctionStyle<Div> div;
+UTILITY_HTML_CONTAINER_CLASS(Div, div);
 
 /// <table> <tr> <th> <td>
-struct TableHeader final : Element<TableHeader>, Content<TableHeader>
-{
-	TableHeader(std::string content = {}) : ElementBase("th"sv), ContentBase(std::move(content)) {}
-	using ElementBase::operator();
-	using ElementBase::operator[];
-	using Content::operator[];
-	using Content::content;
-};
-
-inline auto operator""_th(const char* str, std::size_t size) { return TableHeader({str, size}); }
-inline constexpr FunctionStyle<TableHeader> th;
-
-struct TableData final : Element<TableData>, Content<TableData>
-{
-	TableData(std::string content = {}) : ElementBase("td"sv), ContentBase(std::move(content)) {}
-	using ElementBase::operator();
-	using ElementBase::operator[];
-	using Content::operator[];
-	using Content::content;
-};
-
-inline auto operator""_td(const char* str, std::size_t size) { return TableData({str, size}); }
-inline constexpr FunctionStyle<TableData> td;
+UTILITY_HTML_CONTENT_CLASS(TableHeader, th);
+UTILITY_HTML_CONTENT_CLASS(TableData, td);
 
 struct TableRow final : Element<TableRow>, Container<TableRow>
 {
 	TableRow() : ElementBase("tr"sv), ContainerBase() {}
-	using ElementBase::operator();
-	using ElementBase::operator[];
-	using ContainerBase::operator[];
-	using ContainerBase::content;
+	UTILITY_HTML_CONTAINER_OPERATORS(TableRow)
 
+private:
 	template<typename Cast, typename Range>
-	auto& from(const Cast& cast, Range&& row)
+	auto& fromImpl(const Cast& cast, Range&& range)
 	{
-		for(auto&& element : row) (*this)(cast(element));
+		for(auto&& element : range) (*this)(cast(element));
 		return *this;
 	}
 
+public:
+	template<typename Cast, typename Range>
+	auto& from(const Cast& cast, Range&& range) { return fromImpl(cast, std::move(range)); }
+
+	template<typename T, typename Cast>
+	auto& from(const Cast& cast, std::initializer_list<T> range) { return fromImpl(cast, range); }
+
 	template<typename Range>
-	auto& from(Range&& range)
-	{
-		return from(td, std::forward<Range>(range));
-	}
+	auto& from(Range&& range) { return fromImpl(td, std::forward<Range>(range)); }
+
+	template<typename T>
+	auto& from(std::initializer_list<T> range) { return fromImpl(td, range); }
 };
 
 inline constexpr FunctionStyle<TableRow> tr;
@@ -499,10 +492,7 @@ inline constexpr FunctionStyle<TableRow> tr;
 struct Table final : Element<Table>, Container<Table>
 {
 	Table() : ElementBase("table"sv), ContainerBase() {}
-	using ElementBase::operator();
-	using ElementBase::operator[];
-	using ContainerBase::operator[];
-	using ContainerBase::content;
+	UTILITY_HTML_CONTAINER_OPERATORS(Table)
 
 	template<typename Cast, typename Range>
 	auto& from(const Cast& cast, Range&& rows)
@@ -521,48 +511,16 @@ struct Table final : Element<Table>, Container<Table>
 inline constexpr FunctionStyle<Table> table;
 
 /// <html>
-struct Html final : Element<Html>, Container<Html>
-{
-	Html() : ElementBase("html"sv), ContainerBase() {}
-	using ElementBase::operator();
-	using ElementBase::operator[];
-	using ContainerBase::operator[];
-	using ContainerBase::content;
-};
-
-inline constexpr FunctionStyle<Html> html;
+UTILITY_HTML_CONTAINER_CLASS(Html, html);
 
 /// <head>
-struct Head final : Element<Head>, Container<Head>
-{
-	Head() : ElementBase("head"sv), ContainerBase() {}
-	using ElementBase::operator();
-	using ElementBase::operator[];
-	using ContainerBase::operator[];
-	using ContainerBase::content;
-};
-
-inline constexpr FunctionStyle<Head> head;
+UTILITY_HTML_CONTAINER_CLASS(Head, head);
 
 /// <body>
-struct Body final : Element<Body>, Container<Body>
-{
-	Body() : ElementBase("body"sv), ContainerBase() {}
-	using ElementBase::operator();
-	using ElementBase::operator[];
-	using ContainerBase::operator[];
-	using ContainerBase::content;
-};
-
-inline constexpr FunctionStyle<Body> body;
+UTILITY_HTML_CONTAINER_CLASS(Body, body);
 
 /// <meta>
-struct Meta final : EmptyElement<Meta>
-{
-	Meta() : EmptyElement("meta"sv) {}
-};
-
-inline constexpr FunctionStyle<Meta> meta;
+UTILITY_HTML_EMPTY_ELEMENT(Meta, meta);
 
 /// attr: style
 /// TODO: wrap CSS
@@ -619,4 +577,13 @@ inline QByteArray formatDocument(const E& element)
 	return formatDocument(std::string_view(shtml));
 }
 #endif
+
+#undef UTILITY_HTML_LITERAL
+#undef UTILITY_HTML_FUNCTOR
+#undef UTILITY_HTML_EMPTY_ELEMENT
+#undef UTILITY_HTML_ELEMENT_OPERATORS
+#undef UTILITY_HTML_CONTENT_OPERATORS
+#undef UTILITY_HTML_CONTENT_CLASS
+#undef UTILITY_HTML_CONTAINER_OPERATORS
+#undef UTILITY_HTML_CONTAINER_CLASS
 } // namespace Html

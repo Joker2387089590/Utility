@@ -229,7 +229,6 @@ public: // constructor without indexes
 
 	DefaultClass(Tuple);
 
-    // TODO: Tuple(std::tuple<...>), Tuple(std::array<T, N>), Tuple(std::pair<...>)
 public:
     using Base::At;             ///< using T = decltype(tuple)::At<i>;
     using Base::get;            ///< auto& elem = tuple.get<i>();

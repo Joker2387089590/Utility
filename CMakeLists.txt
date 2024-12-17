@@ -163,6 +163,21 @@ if(UTILITY_USE_NLOHMANN_JSON_PROTOBUF)
 	)
 endif()
 
+# win error
+if(WIN32)
+	if(${QT_FOUND})
+		set(UTILITY_WINERROR_NO_QT_DEFAULT OFF)
+	else()
+		set(UTILITY_WINERROR_NO_QT_DEFAULT ON)
+	endif()
+	set(UTILITY_WINERROR_NO_QT "" ${UTILITY_WINERROR_NO_QT_DEFAULT})
+
+	list(APPEND sources WinError.h)
+	if(${UTILITY_WINERROR_NO_QT})
+		list(APPEND definitions UTILITY_WINERROR_NO_QT)
+	endif()
+endif()
+
 set(source_paths)
 foreach(source IN LISTS sources)
 	list(APPEND source_paths "include/Utility/${source}")

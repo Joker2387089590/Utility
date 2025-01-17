@@ -29,14 +29,13 @@ namespace EasyFmts
 template<typename Char, typename Color>
 constexpr auto print(std::FILE* file, Color color, const Char* str, std::size_t size)
 {
-	return [=](auto&&... args) -> void {
-		auto f = fmt::basic_string_view<Char>(str, size);
+	return [=](auto&&... args) {
 #ifndef EASY_FMT_NO_COLOR
-		fmt::print(file, color, f, fwd(args)...);
+		fmt::print(file, color, fmt::runtime({str, size}), fwd(args)...);
 #else // EASY_FMT_NO_COLOR
-		fmt::print(file, f, fwd(args)...);
+		fmt::print(file, fmt::runtime({str, size}), fwd(args)...);
 #endif // EASY_FMT_NO_COLOR
-		fmt::print("\n");
+		fmt::print(FMT_COMPILE("\n"));
 	};
 };
 #else // EASY_FMT_NO_CONSOLE
@@ -88,12 +87,14 @@ using namespace fmt::literals;
 
 [[nodiscard]] inline auto operator""_print(const char* str, std::size_t size)
 {
-	return EasyFmts::print(stdout, fg(fmt::color::UTILITY_EASYFMT_PRINT_COLOR), str, size);
+	constexpr auto color = fg(fmt::color::UTILITY_EASYFMT_PRINT_COLOR);
+	return print(stdout, color, str, size);
 }
 
 [[nodiscard]] inline auto operator""_err(const char* str, std::size_t size)
 {
-	return EasyFmts::print(stderr, fg(fmt::color::UTILITY_EASYFMT_ERROR_COLOR), str, size);
+	constexpr auto color = fg(fmt::color::UTILITY_EASYFMT_ERROR_COLOR);
+	return print(stderr, color, str, size);
 }
 
 [[nodiscard]] inline auto operator""_fatal(const char* str, std::size_t size)

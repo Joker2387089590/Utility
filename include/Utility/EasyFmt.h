@@ -10,7 +10,7 @@
 #include <fmt/color.h>
 
 #if !defined(EASY_FMT_NO_QT) &&  __has_include(<QString>)
-#	include <QString>
+#    include <QString>
 #endif
 
 #include "Macros.h"
@@ -20,22 +20,23 @@ namespace EasyFmts
 // template<typename Char, typename... T>
 // inline auto vformat(std::basic_string_view<Char> f, T&&... args)
 // {
-// 	using Context = fmt::buffered_context<Char>;
-// 	auto ff = fmt::basic_string_view<Char>(f);
-// 	return fmt::vformat(ff, fmt::make_format_args<Context>(args...));
+//     using Context = fmt::buffered_context<Char>;
+//     auto ff = fmt::basic_string_view<Char>(f);
+//     return fmt::vformat(ff, fmt::make_format_args<Context>(args...));
 // }
 
 #ifndef EASY_FMT_NO_CONSOLE
 template<typename Char, typename Color>
 constexpr auto print(std::FILE* file, Color color, const Char* str, std::size_t size)
 {
-	return [=](auto&&... args) {
+	return [=](auto&&... args) -> void {
+		auto f = fmt::basic_string_view<Char>(str, size);
 #ifndef EASY_FMT_NO_COLOR
-		fmt::print(file, color, fmt::runtime({str, size}), fwd(args)...);
+		fmt::print(file, color, f, fwd(args)...);
 #else // EASY_FMT_NO_COLOR
-		fmt::print(file, fmt::runtime({str, size}), fwd(args)...);
+		fmt::print(file, f, fwd(args)...);
 #endif // EASY_FMT_NO_COLOR
-		fmt::print(FMT_COMPILE("\n"));
+		fmt::print("\n");
 	};
 };
 #else // EASY_FMT_NO_CONSOLE
@@ -87,14 +88,12 @@ using namespace fmt::literals;
 
 [[nodiscard]] inline auto operator""_print(const char* str, std::size_t size)
 {
-	constexpr auto color = fg(fmt::color::UTILITY_EASYFMT_PRINT_COLOR);
-	return print(stdout, color, str, size);
+	return EasyFmts::print(stdout, fg(fmt::color::UTILITY_EASYFMT_PRINT_COLOR), str, size);
 }
 
 [[nodiscard]] inline auto operator""_err(const char* str, std::size_t size)
 {
-	constexpr auto color = fg(fmt::color::UTILITY_EASYFMT_ERROR_COLOR);
-	return print(stderr, color, str, size);
+	return EasyFmts::print(stderr, fg(fmt::color::UTILITY_EASYFMT_ERROR_COLOR), str, size);
 }
 
 [[nodiscard]] inline auto operator""_fatal(const char* str, std::size_t size)

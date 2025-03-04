@@ -26,8 +26,7 @@ set(sources
 	ReadFile.h
 	RollBack.h
 	SignalSequence.h
-	Singleton.h
-	SpinLock.h
+	TimeTool.h
 )
 set(include_dirs)
 set(link_libs)
@@ -170,12 +169,23 @@ if(WIN32)
 	else()
 		set(UTILITY_WINERROR_NO_QT_DEFAULT ON)
 	endif()
-	set(UTILITY_WINERROR_NO_QT "" ${UTILITY_WINERROR_NO_QT_DEFAULT})
+	option(UTILITY_WINERROR_NO_QT "disable Qt support in WinError.h" ${UTILITY_WINERROR_NO_QT_DEFAULT})
 
 	list(APPEND sources WinError.h)
 	if(${UTILITY_WINERROR_NO_QT})
 		list(APPEND definitions UTILITY_WINERROR_NO_QT)
 	endif()
+endif()
+
+# time tool
+if(${QT_FOUND})
+	set(UTILITY_TIMETOOL_NO_QDATETIME_DEFAULT OFF)
+else()
+	set(UTILITY_TIMETOOL_NO_QDATETIME_DEFAULT ON)
+endif()
+option(UTILITY_TIMETOOL_NO_QDATETIME "disable Qt support in TimeTool.h" ${UTILITY_TIMETOOL_NO_QDATETIME_DEFAULT})
+if(${UTILITY_TIMETOOL_NO_QDATETIME})
+	list(APPEND definitions UTILITY_TIMETOOL_NO_QDATETIME)
 endif()
 
 set(source_paths)

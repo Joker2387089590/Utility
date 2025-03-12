@@ -6,6 +6,8 @@ set(sources
 	CallableTrait.h
 	VariantVisitor.h
 	Tuple.h
+	Literal.h
+	StrEnums.h
 	Access.h
 	AnyHash.h
 	CompareTie.h
@@ -20,7 +22,6 @@ set(sources
 	MoveOnlyFunctor.h
 	NumRange.h
 	ObjectAddress.h
-	PrivateContructor.h
 	Proxy.h
 	RandomNumber.h
 	ReadFile.h

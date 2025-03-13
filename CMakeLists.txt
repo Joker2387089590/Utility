@@ -1,5 +1,5 @@
-cmake_minimum_required(VERSION 3.18)
-project(Utility LANGUAGES CXX)
+cmake_minimum_required(VERSION 3.28)
+project(Utility VERSION 0.1.0 LANGUAGES CXX)
 
 set(sources
 	TypeList.h
@@ -29,18 +29,11 @@ set(sources
 	SignalSequence.h
 	TimeTool.h
 )
-set(include_dirs)
 set(link_libs)
 set(definitions)
 
 # includes
-set(def_include_dir "${PROJECT_SOURCE_DIR}/include")
-cmake_path(NORMAL_PATH def_include_dir)
-list(APPEND include_dirs ${def_include_dir})
 option(UTILITY_INCLUDE_SELF "make headers directly included" OFF)
-if(UTILITY_INCLUDE_SELF)
-	list(APPEND include_dirs "${PROJECT_SOURCE_DIR}/include/Utility")
-endif()
 
 # find packages to be wrapped
 find_package(QT NAMES Qt5 Qt6 QUIET)
@@ -194,8 +187,69 @@ foreach(source IN LISTS sources)
 	list(APPEND source_paths "include/Utility/${source}")
 endforeach()
 
+include(GNUInstallDirs)
+
 add_library(Utility INTERFACE)
-target_sources(Utility INTERFACE ${source_paths})
-target_include_directories(Utility INTERFACE ${include_dirs})
+add_library(Utility::Utility ALIAS Utility)
+
+set(_base_dirs include)
+if(UTILITY_INCLUDE_SELF)
+	list(APPEND _base_dirs include/Utility)
+endif()
+
+target_sources(Utility INTERFACE
+	FILE_SET utility_file_set
+	TYPE HEADERS
+	BASE_DIRS ${_base_dirs}
+	FILES ${source_paths}
+)
+
+target_include_directories(Utility INTERFACE
+	"$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>"
+)
+if(UTILITY_INCLUDE_SELF)
+	target_include_directories(Utility INTERFACE
+		"$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include/Utility>"
+	)
+endif()
+
 target_link_libraries(Utility INTERFACE ${link_libs})
+
 target_compile_definitions(Utility INTERFACE ${definitions})
+
+install(
+	TARGETS Utility
+	EXPORT UtilityTargets
+	INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+	FILE_SET utility_file_set
+)
+
+install(
+	EXPORT UtilityTargets
+	FILE UtilityTargets.cmake
+	NAMESPACE Utility::
+	DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/Utility
+)
+
+include(CMakePackageConfigHelpers)
+
+write_basic_package_version_file(
+	"UtilityConfigVersion.cmake"
+	VERSION ${PROJECT_VERSION}
+	COMPATIBILITY AnyNewerVersion
+)
+
+configure_package_config_file(
+    "${PROJECT_SOURCE_DIR}/cmake/UtilityConfig.cmake.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/UtilityConfig.cmake"
+    INSTALL_DESTINATION
+        ${CMAKE_INSTALL_LIBDIR}/cmake/Utility
+)
+
+install(
+    FILES 
+        "${CMAKE_CURRENT_BINARY_DIR}/UtilityConfig.cmake"
+        "${CMAKE_CURRENT_BINARY_DIR}/UtilityConfigVersion.cmake"
+    DESTINATION
+        ${CMAKE_INSTALL_LIBDIR}/cmake/Utility
+)

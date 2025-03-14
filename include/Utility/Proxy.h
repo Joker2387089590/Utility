@@ -164,9 +164,9 @@ public:
 	{}
 
 	template<typename T>
-	constexpr ProxyImpl& operator=(T* object) & noexcept
+	constexpr ProxyImpl& operator=(T* xobject) & noexcept
 	{
-		this->object = object;
+		this->object = xobject;
 		this->vptr = std::addressof(Facades::template vtable<T>);
 		return *this;
 	}
@@ -183,7 +183,7 @@ public:
 	decltype(auto) invoke(As&&... args) const
 	{
 		constexpr auto index = Types::TList<Ds...>::template find<D>();
-		static_assert(index != -1);
+		static_assert(index != static_cast<std::size_t>(-1));
 		return std::get<index>(*vptr)(object, std::forward<As>(args)...);
 	}
 

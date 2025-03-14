@@ -139,8 +139,8 @@ struct InvokeTypedFunctor : Callable<Fr>
 	template<typename R, typename... Args, typename F>
 	static constexpr auto wrap(F&& f, TList<Args...>)
 	{
-		return [f = std::forward<F>(f)](Args... ts) constexpr -> R {
-			return static_cast<R>(f(std::forward<Args>(ts)...));
+		return [fx = std::forward<F>(f)](Args... ts) constexpr -> R {
+			return static_cast<R>(fx(std::forward<Args>(ts)...));
 		};
 	}
 
@@ -157,8 +157,8 @@ struct ReturnTypedFunctor
 	template<typename... Args, typename F>
 	static constexpr auto wrap(F&& f, TList<Args...>)
 	{
-		return [f = std::forward<F>(f)](Args... ts) constexpr -> R {
-			return static_cast<R>(f(std::forward<Args>(ts)...));
+		return [fx = std::forward<F>(f)](Args... ts) constexpr -> R {
+			return static_cast<R>(fx(std::forward<Args>(ts)...));
 		};
 	}
 
@@ -173,8 +173,8 @@ struct ReturnTypedFunctor
 		else
 		{
 			// f may be a functor with overloaded calling operators
-			return [f = std::forward<F>(f)](auto&&... args) constexpr -> R {
-				return static_cast<R>(f(std::forward<decltype(args)>(args)...));
+			return [fx = std::forward<F>(f)](auto&&... args) constexpr -> R {
+				return static_cast<R>(fx(std::forward<decltype(args)>(args)...));
 			};
 		}
 	}
@@ -186,8 +186,8 @@ struct ArgTypedFunctor
 	template<typename F>
 	friend constexpr auto operator|(F&& f, ArgTypedFunctor)
 	{
-		return [f = std::forward<F>(f)](Args... args) constexpr {
-			return f(std::forward<Args>(args)...);
+		return [fx = std::forward<F>(f)](Args... args) constexpr {
+			return fx(std::forward<Args>(args)...);
 		};
 	}
 };
@@ -244,10 +244,10 @@ template<typename F, typename... Args>
 constexpr auto curry(F&& f, Args&&... args1)
 {
 	// 参考 https://stackoverflow.com/a/49902823
-	return [f = fwd(f), args1 = std::make_tuple(std::forward<Args>(args1)...)](auto&&... args2) mutable {
-		return std::apply([&](auto&&... args1) {
-			return std::invoke(fwd(f), std::forward<Args>(args1)..., fwd(args2)...);
-		}, std::move(args1));
+	return [fx = fwd(f), args1x = std::make_tuple(std::forward<Args>(args1)...)](auto&&... args2) mutable {
+		return std::apply([&](auto&&... args1y) {
+			return std::invoke(fwd(fx), std::forward<Args>(args1y)..., fwd(args2)...);
+		}, std::move(args1x));
 	};
 }
 
@@ -335,16 +335,16 @@ public:
 	template<typename Rx, typename... Ax>
 	FunctionRefImpl(Rx(*f)(Ax...)) noexcept :
 		target(reinterpret_cast<void(*)()>(f)),
-		func([](Target target, Args&&... args) -> R {
-			return ((Rx(*)(Ax...))(target.cfunc))(std::forward<Args>(args)...);
+		func([](Target xtarget, Args&&... args) -> R {
+			return reinterpret_cast<Rx(*)(Ax...)>(xtarget.cfunc)(std::forward<Args>(args)...);
 		})
 	{}
 
 	template<typename F, std::enable_if_t<!isFunction<F>, int> = 0>
 	constexpr FunctionRefImpl(F&& f) noexcept :
 		target(static_cast<const void*>(std::addressof(f))),
-		func([](Target target, Args&&... args) -> R {
-			auto of = static_cast<std::add_pointer_t<F>>(const_cast<void*>(target.obj));
+		func([](Target xtarget, Args&&... args) -> R {
+			auto of = static_cast<std::add_pointer_t<F>>(const_cast<void*>(xtarget.obj));
 			return std::invoke(*of, std::forward<Args>(args)...);
 		})
 	{}
@@ -396,8 +396,8 @@ struct Apply
 	template<typename F>
 	constexpr auto operator()(F&& f) const
 	{
-		return [f = std::forward<F>(f)](auto&& tuple) mutable {
-			return std::apply(f, std::forward<decltype(tuple)>(tuple));
+		return [fx = std::forward<F>(f)](auto&& tuple) mutable {
+			return std::apply(fx, std::forward<decltype(tuple)>(tuple));
 		};
 	}
 

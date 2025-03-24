@@ -38,7 +38,7 @@ constexpr auto print(std::FILE* file, Color color, const Char* str, std::size_t 
 #endif // EASY_FMT_NO_COLOR
 		fmt::print("\n");
 	};
-};
+}
 #else // EASY_FMT_NO_CONSOLE
 inline constexpr auto print = [](auto&&...) { return [](auto&&...) -> void {}; };
 #endif // EASY_FMT_NO_CONSOLE
@@ -160,7 +160,7 @@ decltype(auto) castEnum(const T& vv)
 		return std::underlying_type_t<type>(vv);
 	else
 		return vv;
-};
+}
 
 // use '@...^' instead of '{...}' as format placeholder
 template<typename... Args>
@@ -262,7 +262,7 @@ struct fmt::formatter<QByteArray, char> : CFormatter
 	template <typename FormatContext>
 	auto format(const QByteArray& s, FormatContext& context) const
 	{
-		auto view = std::string_view(s.data(), s.size());
+		auto view = std::string_view(s.data(), std::size_t(s.size()));
 		return CFormatter::format(view, context);
 	}
 };
@@ -274,7 +274,7 @@ struct fmt::formatter<QLatin1String, char> : CFormatter
 	template <typename FormatContext>
 	auto format(const QLatin1String& s, FormatContext& context) const
 	{
-		auto view = std::string_view(s.data(), s.size());
+		auto view = std::string_view(s.data(), std::size_t(s.size()));
 		return CFormatter::format(view, context);
 	}
 };

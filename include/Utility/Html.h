@@ -424,7 +424,7 @@ struct Heading final : Element<Heading<l>>, Content<Heading<l>>
 		Content<Heading<level>>(std::move(content))
 	{}
 
-	UTILITY_HTML_CONTENT_OPERATORS(Heading);
+	UTILITY_HTML_CONTENT_OPERATORS(Heading)
 };
 
 template<int level>

@@ -1,7 +1,7 @@
 #pragma once
 #include <variant>
 #ifndef VARIANTS_USE_EXPECTED
-#	if __cpp_lib_expected >= 202202L
+#	if defined(__cpp_lib_expected) && __cpp_lib_expected >= 202202L
 #		include <expected>
 #		define VARIANTS_USE_EXPECTED 1
 #	elif __has_include(<boost/outcome.hpp>)
@@ -27,7 +27,7 @@ class VariantImpl : public std::variant<Vs...>
 
 public:
 	using Base::Base;
-	DefaultClass(VariantImpl);
+	DefaultClass(VariantImpl)
 
 	template<typename T> static constexpr auto indexOf = TList::template find<T>();
 

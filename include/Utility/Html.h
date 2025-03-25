@@ -561,7 +561,7 @@ inline QByteArray formatDocument(std::string_view shtml)
 {
 	// TODO: check if shtml is valid XML
 	QByteArray fhtml;
-	QXmlStreamReader reader(QByteArray::fromRawData(shtml.data(), shtml.size()));
+	QXmlStreamReader reader(QByteArray::fromRawData(shtml.data(), qsizetype(shtml.size())));
 	QXmlStreamWriter writer(&fhtml);
 	writer.setAutoFormatting(true);
 	while(!reader.atEnd())

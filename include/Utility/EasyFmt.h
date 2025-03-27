@@ -321,7 +321,10 @@ struct fmt::formatter<QChar, wchar_t> : fmt::formatter<wchar_t, wchar_t>
 #endif
 
 #ifndef EASY_FMT_NO_USING_LITERALS_NAMESPACE
+UTILITY_DISABLE_WARNING_PUSH
+UTILITY_DISABLE_WARNING_HEADER_HYGIENE
 using namespace EasyFmts::Literals;
+UTILITY_DISABLE_WARNING_POP
 #endif
 
 #include "MacrosUndef.h"

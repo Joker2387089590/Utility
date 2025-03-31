@@ -12,41 +12,66 @@ namespace TimeTool
 {
 using namespace std::chrono;
 
-template<typename System = system_clock, typename Steady = high_resolution_clock>
+template<typename SysClock = system_clock, typename SteadyClock = high_resolution_clock>
 struct DualTimePoint
 {
-    using Duration = typename Steady::duration;
+	using System = SysClock;
+	using Steady = SteadyClock;
+	using Duration = typename Steady::duration;
 
-    System::time_point system;
-    Steady::time_point steady;
+	DualTimePoint() noexcept : system(System::now()), steady(Steady::now()) {}
 
-    DualTimePoint() noexcept : system(System::now()), steady(Steady::now()) {}
+	DualTimePoint(System::time_point system, Steady::time_point steady) noexcept :
+		system(std::move(system)),
+		steady(std::move(steady))
+	{}
 
-    DualTimePoint(System::time_point system, Steady::time_point steady) noexcept :
-        system(std::move(system)),
-        steady(std::move(steady))
-    {}
+	DualTimePoint(const DualTimePoint&) noexcept = default;
+	DualTimePoint& operator=(const DualTimePoint&) noexcept = default;
+	DualTimePoint(DualTimePoint&&) noexcept = default;
+	DualTimePoint& operator=(DualTimePoint&&) noexcept = default;
 
-    auto now() const noexcept
-    {
-        auto xnow = high_resolution_clock::now();
-        auto duration = xnow - steady;
-        return std::pair{DualTimePoint(system + duration, xnow), duration};
-    }
+	void reset()
+	{
+		system = System::now();
+		steady = Steady::now();
+	}
 
-    friend auto operator-(const DualTimePoint& a, const DualTimePoint& b) noexcept
-    {
-        return a.steady - b.steady;
-    }
+	auto elapsed() const noexcept
+	{
+		auto xnow = Steady::now();
+		auto duration = xnow - steady;
+		auto snow = system + duration_cast<typename System::duration>(duration);
+		return std::pair{DualTimePoint(snow, xnow), duration};
+	}
 
-    // TODO: operators
+	auto now() const noexcept
+	{
+		auto [point, duration] = elapsed();
+		return point;
+	}
+
+	friend auto operator-(const DualTimePoint& a, const DualTimePoint& b) noexcept
+	{
+		return a.steady - b.steady;
+	}
+
+	// TODO: operators
 
 #if !defined(UTILITY_TIMETOOL_NO_QDATETIME)
-    QDateTime toQDateTime() const
-    {
-        return QDateTime::fromStdTimePoint(system);
-    }
+	QDateTime toQDateTime() const
+	{
+#   if QT_VERSION >= QT_VERSION_CHECK(6, 4, 0)
+		return QDateTime::fromStdTimePoint(time_point_cast<milliseconds>(system));
+#   else
+		return QDateTime::fromMSecsSinceEpoch(system.time_since_epoch().count());
+#   endif
+	}
 #endif
+
+public:
+	System::time_point system;
+	Steady::time_point steady;
 };
 
 template<typename System, typename Steady>
@@ -54,12 +79,12 @@ DualTimePoint(System&&, Steady&&) -> DualTimePoint<std::decay_t<System>, std::de
 
 inline auto secondsToHMS(std::intmax_t seconds) noexcept
 {
-    struct Diff
-    {
+	struct Diff
+	{
 		std::intmax_t hours{};
 		std::intmax_t minutes{};
 		std::intmax_t seconds{};
-    };
+	};
 
 	if(seconds == 0) return Diff{};
 
@@ -71,8 +96,8 @@ inline auto secondsToHMS(std::intmax_t seconds) noexcept
 
 inline auto msToHMSZ(std::intmax_t ms) noexcept
 {
-	struct Diff 
-    {
+	struct Diff
+	{
 		std::intmax_t hours{};
 		std::intmax_t minutes{};
 		std::intmax_t seconds{};
@@ -90,12 +115,12 @@ inline auto msToHMSZ(std::intmax_t ms) noexcept
 
 inline std::string formatHMSZ(std::intmax_t ms)
 {
-    std::string r;
-    auto iter = std::back_inserter(r);
+	std::string r;
+	auto iter = std::back_inserter(r);
 	auto [h, m, s, z] = msToHMSZ(ms);
-    if(h != 0) std::format_to(iter, "{}h", h);
-    if(m != 0 || !r.empty()) std::format_to(iter, "{}m", m);
-    std::format_to(iter, "{:.3f}s", s + 0.001 * z);
-    return r;
+	if(h != 0) std::format_to(iter, "{}h", h);
+	if(m != 0 || !r.empty()) std::format_to(iter, "{}m", m);
+	std::format_to(iter, "{:.3f}s", s + 0.001 * z);
+	return r;
 }
 } // namespace TimeTool

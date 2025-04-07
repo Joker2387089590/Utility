@@ -331,12 +331,6 @@ constexpr auto unbind = typename ExpandClassOf<memberFunc, UnbindImpl>::template
 template<typename R, typename... Args>
 class FunctionRefImpl
 {
-	template<typename C>
-	static constexpr C* asPointer(C& obj) noexcept { return std::addressof(obj); }
-
-	template<typename C>
-	static constexpr C* asPointer(C* obj) noexcept { return obj; }
-
 public:
 	FunctionRefImpl() noexcept : target(static_cast<const void*>(nullptr)), func(nullptr) {}
 
@@ -360,12 +354,17 @@ public:
 	{}
 
 	template<typename C, auto f, std::enable_if_t<f != 0, int> = 0>
-	constexpr FunctionRefImpl(C&& obj, Bind<f>) :
-		target(static_cast<const void*>(asPointer(obj))),
+	constexpr FunctionRefImpl(C* obj, Bind<f>) :
+		target(static_cast<const void*>(obj)),
 		func([](Target xtarget, Args&&... args) -> R {
 			auto of = static_cast<C*>(const_cast<void*>(xtarget.obj));
 			return std::invoke(f, *of, std::forward<Args>(args)...);
 		})
+	{}
+
+	template<typename C, auto f, std::enable_if_t<f != 0, int> = 0>
+	constexpr FunctionRefImpl(C& obj, Bind<f> bind) :
+		FunctionRefImpl(std::addressof(obj), bind) 
 	{}
 
 	constexpr FunctionRefImpl(const FunctionRefImpl&) noexcept = default;

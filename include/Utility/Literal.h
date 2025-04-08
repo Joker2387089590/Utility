@@ -4,16 +4,17 @@
 
 namespace Literals
 {
-template<typename Char, std::size_t N>
+template<typename C, std::size_t N>
 struct StringLiteral
 {
 public:
+	using Char = C;
     using StdStringView = std::basic_string_view<Char>;
 
     constexpr StringLiteral(const Char (&str)[N]) { std::copy_n(str, N, value); }
     constexpr ~StringLiteral() = default;
 
-    constexpr operator StdStringView() const { return {value}; }
+	constexpr operator StdStringView() const { return {value}; }
 
     constexpr bool operator==(StdStringView v) const noexcept
     {
@@ -28,6 +29,10 @@ public:
 #else
     // maybe someone can complete this...
 #endif
+
+public:
+	constexpr const Char* data() const { return value; }
+	static constexpr std::size_t size() { return N - 1; }
 
 public:
     Char value[N];

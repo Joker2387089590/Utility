@@ -13,79 +13,117 @@
 #    include <QString>
 #endif
 
-#include "Macros.h"
+#include <Utility/Macros.h>
+#include <Utility/Literal.h>
 
 namespace EasyFmts
 {
-// template<typename Char, typename... T>
-// inline auto vformat(std::basic_string_view<Char> f, T&&... args)
-// {
-//     using Context = fmt::buffered_context<Char>;
-//     auto ff = fmt::basic_string_view<Char>(f);
-//     return fmt::vformat(ff, fmt::make_format_args<Context>(args...));
-// }
-
-#ifndef EASY_FMT_NO_CONSOLE
-template<typename Char, typename Color>
-constexpr auto print(std::FILE* file, Color color, const Char* str, std::size_t size)
-{
-	return [=](auto&&... args) -> void {
-		auto f = fmt::basic_string_view<Char>(str, size);
-#ifndef EASY_FMT_NO_COLOR
-		fmt::print(file, color, f, fwd(args)...);
-#else // EASY_FMT_NO_COLOR
-		fmt::print(file, f, fwd(args)...);
-#endif // EASY_FMT_NO_COLOR
-		fmt::print("\n");
-	};
-}
-#else // EASY_FMT_NO_CONSOLE
-inline constexpr auto print = [](auto&&...) { return [](auto&&...) -> void {}; };
-#endif // EASY_FMT_NO_CONSOLE
-
+/// import fmt literals
 inline namespace Literals
 {
 using namespace fmt::literals;
+using fmt::literals::operator""_a;
 
-[[nodiscard]] constexpr auto operator""_fmt(const char* str, std::size_t size)
-{
-	return [f = std::string_view(str, size)](auto&&... args) constexpr {
-		if constexpr (sizeof...(args) == 0)
-			return f;
-		else
-			return fmt::format(fmt::runtime(f), fwd(args)...);
-	};
+#if !FMT_USE_NONTYPE_TEMPLATE_ARGS
+// NOTE: this use something in fmt::detail
+constexpr auto operator""_a(const char16_t* s, std::size_t) -> fmt::detail::udl_arg<char16_t> {
+	return {s};
 }
+#endif
+} // namespace Literals
 
+/// fmt::runtime workaround
+// from spdlog
 // fmt::runtime has just overloaded std::string_view/wstring_view, why???
-[[nodiscard]] constexpr auto operator""_fmt(const char16_t* str, std::size_t size)
+#if FMT_VERSION >= 90101
+template <typename Char>
+using fmt_runtime_string = fmt::runtime_format_string<Char>;
+#else
+template <typename Char>
+using fmt_runtime_string = fmt::basic_runtime<Char>;
+#endif
+
+/// operator""_fmt
+#if __cpp_nontype_template_args < 201911L
+
+template<typename Char>
+[[nodiscard]] constexpr auto fmtImpl(const Char* str, std::size_t size) noexcept
 {
-	return [str, size](auto&&... args) constexpr {
+	return [str, size](auto&&... args) {
 		if constexpr (sizeof...(args) == 0)
-			return std::u16string_view(str, size);
+			return std::basic_string_view<Char>(str, size);
 		else
-			return fmt::format(fmt::basic_string_view<char16_t>(str, size), fwd(args)...);
+			return fmt::format(fmt_runtime_string<Char>{{str, size}}, fwd(args)...);
 	};
 }
 
-[[nodiscard]] constexpr auto operator""_fmt(const wchar_t* str, std::size_t size)
+inline namespace Literals
 {
-	return [f = std::wstring_view(str, size)](auto&&... args) constexpr {
-		if constexpr (sizeof...(args) == 0)
-			return f;
-		else
-			return fmt::format(fmt::runtime(f), fwd(args)...);
+[[nodiscard]] constexpr auto operator""_fmt(const char* str, std::size_t size) noexcept { return fmtImpl(str, size); }
+[[nodiscard]] constexpr auto operator""_fmt(const wchar_t* str, std::size_t size) noexcept { return fmtImpl(str, size); }
+[[nodiscard]] constexpr auto operator""_fmt(const char16_t* str, std::size_t size) noexcept { return fmtImpl(str, size); }
+[[nodiscard]] constexpr auto operator""_fmt(const char32_t* str, std::size_t size) noexcept { return fmtImpl(str, size); }
+
+#ifdef __cpp_char8_t
+[[nodiscard]] constexpr auto operator""_fmt(const char8_t* str, std::size_t size) noexcept { return fmtImpl(str, size); }
+#endif
+} // namespace Literals
+
+#else
+
+template<::Literals::StringLiteral s>
+constexpr auto fmtImpl = [](auto&&... args) {
+	using Char = typename decltype(s)::Char;
+	using View = fmt::basic_string_view<Char>;
+	using Check = fmt::basic_format_string<Char, decltype(args)...>;
+	constexpr auto view = View(s.data(), s.size());
+	[[maybe_unused]] constexpr auto check = Check(view);
+	if constexpr (sizeof...(args) == 0)
+		return std::basic_string_view<Char>(s.data(), s.size());
+	else
+		return fmt::format(view, fwd(args)...);
+};
+
+inline namespace Literals
+{
+template<::Literals::StringLiteral s>
+[[nodiscard]] constexpr auto operator""_fmt() noexcept { return fmtImpl<s>; }
+} // namespace Literals
+
+#endif
+
+/// print
+// On Windows, the stdout and stderr is printed by conhost.exe,
+// which is the backend of cmd.exe, and it doesn't recognize the ANSI color escape.
+// However fmt use ANSI color escape to implement colorful terminal output.
+// We can modify the default behavious of conhost by setting Windows Register:
+// in `HKCU\Console`, add DWORD `VirtualTerminalLevel` as 1
+// Or running command below by Powershell as Admin:
+// `Set-ItemProperty HKCU:\Console VirtualTerminalLevel -Type DWORD 1`
+
+#ifdef EASY_FMT_NO_COLOR
+#   define EASY_FMT_COLOR(color)
+#else
+#   define EASY_FMT_COLOR(color) color,
+#endif
+
+#if __cpp_nontype_template_args < 201911L
+template<typename Char, typename Color>
+[[nodiscard]] constexpr auto print(std::FILE* file, Color color, const Char* str, std::size_t size)
+{
+#ifndef EASY_FMT_NO_CONSOLE
+	return [=](auto&&... args) constexpr {
+		using View = fmt::basic_string_view<Char>;
+		fmt::print(file, EASY_FMT_COLOR(color) View(str, size), fwd(args)...);
+		fmt::print("\n");
 	};
+#else
+	return [](auto&&...) {};
+#endif
 }
 
-/// On Windows, the stdout and stderr is printed by conhost.exe,
-/// which is the backend of cmd.exe, and it doesn't recognize the ANSI color escape.
-/// However fmt use ANSI color escape to implement colorful terminal output.
-/// We can modify the default behavious of conhost by setting Windows Register:
-/// in `HKCU\Console`, add DWORD `VirtualTerminalLevel` as 1
-/// Or running command below by Powershell as Admin:
-/// `Set-ItemProperty HKCU:\Console VirtualTerminalLevel -Type DWORD 1`
-
+inline namespace Literals
+{
 [[nodiscard]] inline auto operator""_print(const char* str, std::size_t size)
 {
 	return EasyFmts::print(stdout, fg(fmt::color::UTILITY_EASYFMT_PRINT_COLOR), str, size);
@@ -98,28 +136,81 @@ using namespace fmt::literals;
 
 [[nodiscard]] inline auto operator""_fatal(const char* str, std::size_t size)
 {
-	return [f = Literals::operator""_fmt(str, size)](auto&&... args) {
-		throw std::runtime_error(std::string(f(fwd(args)...)));
+	return [=](auto&&... args) {
+		auto msg = std::string(fmtImpl(str, size)(fwd(args)...));
+		throw std::runtime_error(msg);
 	};
 }
+} // namespace Literals
+
+#else
+
+template<::Literals::StringLiteral s, typename Color>
+[[nodiscard]] constexpr auto print(std::FILE* file, Color color) noexcept
+{
+	return [file, color](auto&&... args) {
+		using Char = typename decltype(s)::Char;
+		using View = fmt::basic_string_view<Char>;
+		auto view = View(s.data(), s.size());
+		fmt::print(file, EASY_FMT_COLOR(color) view, fwd(args)...);
+		fmt::print("\n");
+	};
+}
+
+inline namespace Literals
+{
+template<::Literals::StringLiteral s>
+[[nodiscard]] inline auto operator""_print()
+{
+	return EasyFmts::print<s>(stdout, fg(fmt::color::UTILITY_EASYFMT_PRINT_COLOR));
+}
+
+template<::Literals::StringLiteral s>
+[[nodiscard]] inline auto operator""_err()
+{
+	return EasyFmts::print<s>(stderr, fg(fmt::color::UTILITY_EASYFMT_ERROR_COLOR));
+}
+
+template<::Literals::StringLiteral s>
+[[nodiscard]] inline auto operator""_fatal()
+{
+	return [](auto&&... args) {
+		auto msg = std::string(fmtImpl<s>(fwd(args)...));
+		throw std::runtime_error(msg);
+	};
+}
+} // namespace Literals
+#endif
+} // namespace EasyFmts
+
+/// Qt support
 
 #ifndef EASY_FMT_NO_QT
-// may have MSVC bug
+namespace EasyFmts
+{
+#if __cpp_nontype_template_args < 201911L
+// WORKAROUND: MSVC bug
 // https://developercommunity.visualstudio.com/t/ICE-when-importing-user-defined-literal/10095949
-[[nodiscard]] constexpr auto qfmtImpl(const char* str, std::size_t size)
+template<typename Char>
+[[nodiscard]] constexpr auto qfmtImpl(const Char* str, std::size_t size)
 {
-	return [f = Literals::operator""_fmt(str, size)](auto&&... args) -> QString {
-		return QString::fromStdString(std::string(f(fwd(args)...)));
+	return [=](auto&&... args) -> QString {
+		auto s = fmtImpl(str, size)(fwd(args)...);
+		if constexpr (std::is_same_v<Char, char>)
+			return QString::fromUtf8(s.data(), s.size());
+		else if constexpr (std::is_same_v<Char, wchar_t>)
+			return QString::fromWCharArray(s.data(), s.size());
+		else if constexpr (std::is_same_v<Char, char16_t>)
+			return QString::fromUtf16(s.data(), s.size());
+		else if constexpr (std::is_same_v<Char, char32_t>)
+			return QString::fromUcs4(s.data(), s.size());
+		else
+			static_assert(!std::is_same_v<Char, Char>, "Unsupported character type for QString");
 	};
 }
 
-[[nodiscard]] constexpr auto qfmtImpl(const char16_t* str, std::size_t size)
+inline namespace Literals
 {
-	return [f = Literals::operator""_fmt(str, size)](auto&&... args) -> QString {
-		return QString::fromStdU16String(std::u16string(f(fwd(args)...)));
-	};
-}
-
 [[nodiscard]] constexpr auto operator""_qfmt(const char* str, std::size_t size)
 {
 	return qfmtImpl(str, size);
@@ -133,85 +224,42 @@ using namespace fmt::literals;
 
 // mix QString with wchar_t seems strange...
 auto operator""_qfmt(const wchar_t* str, std::size_t size) = delete;
-
-using fmt::literals::operator""_a;
-
-#if !FMT_USE_NONTYPE_TEMPLATE_ARGS
-// NOTE: this use something in fmt::detail
-constexpr auto operator""_a(const char16_t* s, std::size_t) -> fmt::detail::udl_arg<char16_t> {
-	return {s};
-}
-#endif
-
-#endif
 } // namespace Literals
 
-#ifndef ARG
-#   define ARG(v) fmt::arg(#v, EasyFmts::castEnum(v))
 #else
-#   error duplicate macro 'ARG' defined!
+
+template<::Literals::StringLiteral l>
+[[nodiscard]] constexpr auto qfmtImpl() noexcept
+{
+	return [](auto&&... args) -> QString {
+		using Char = typename decltype(l)::Char;
+		auto s = fmtImpl<l>(fwd(args)...);
+		if constexpr (std::is_same_v<Char, char>)
+			return QString::fromUtf8(s.data(), s.size());
+		else if constexpr (std::is_same_v<Char, wchar_t>)
+			return QString::fromWCharArray(s.data(), s.size());
+		else if constexpr (std::is_same_v<Char, char16_t>)
+			return QString::fromUtf16(s.data(), s.size());
+		else if constexpr (std::is_same_v<Char, char32_t>)
+			return QString::fromUcs4(s.data(), s.size());
+		else
+			static_assert(!std::is_same_v<Char, Char>, "Unsupported character type for QString");
+	};
+}
+
+inline namespace Literals
+{
+template<::Literals::StringLiteral s>
+[[nodiscard]] constexpr auto operator""_qfmt() { 
+	using Char = typename decltype(s)::Char;
+	static_assert(!std::is_same_v<Char, wchar_t>, "mix QString with wchar_t seems strange...");
+	return qfmtImpl<s>(); 
+}
+} // inline namespace Literals
+
 #endif
 
-template<typename T>
-decltype(auto) castEnum(const T& vv)
-{
-	using type = std::decay_t<T>;
-	if constexpr (std::is_enum_v<type>)
-		return std::underlying_type_t<type>(vv);
-	else
-		return vv;
-}
-
-// use '@...^' instead of '{...}' as format placeholder
-template<typename... Args>
-inline auto fjson(std::string_view f, Args&&... args)
-{
-	enum { Out, InVar } state { Out };
-	std::string r;
-	std::size_t pre = 0;
-	for(std::size_t i = 0; i != f.size(); ++i)
-	{
-		switch(state)
-		{
-		case Out:
-			switch(f[i])
-			{
-			case '"':
-				i = f.find('"', i + 1);
-				if(i == f.npos) throw std::exception();
-				continue;
-			case '@':
-				state = InVar;
-				r.append(f.substr(pre, i - pre)).append("{");
-				pre = i + 1;
-				continue;
-			case '{':
-				r.append(f.substr(pre, i - pre)).append("{{");
-				pre = i + 1;
-				continue;
-			case '}':
-				r.append(f.substr(pre, i - pre)).append("}}");
-				pre = i + 1;
-				continue;
-			default:
-				continue;
-			}
-		case InVar:
-			if(f[i] == '^')
-			{
-				state = Out;
-				r.append(f.substr(pre, i - pre)).append("}");
-				pre = i + 1;
-			}
-			continue;
-		}
-	}
-	if(pre < f.size()) r.append(f.substr(pre));
-	return fmt::format(fmt::runtime(r), fwd(args)...);
-}
 } // namespace EasyFmts
-
-#ifndef EASY_FMT_NO_QT
 
 using U16Formatter = fmt::formatter<std::u16string_view, char16_t>;
 using CFormatter = fmt::formatter<std::string_view, char>;
@@ -311,14 +359,84 @@ struct fmt::formatter<QChar, wchar_t> : fmt::formatter<wchar_t, wchar_t>
 	template <typename FormatContext>
 	auto format(QChar c, FormatContext& context) const
 	{
-		// why so heavy: converting characters' encode is never trival.
+		// QChar is utf-16
+		// wchar_t is utf-16 on Windows or usc-4 on other platforms
+		static_assert(sizeof(QChar) <= sizeof(wchar_t));
+
 		wchar_t wc = 0;
-		QString(c).toWCharArray(&wc);
+		[[maybe_unused]] auto size = QStringView(&c, 1).toWCharArray(&wc);
 		return Base::format(wc, context);
 	}
 };
 
 #endif
+
+namespace EasyFmts
+{
+#ifndef ARG
+#   define ARG(v) fmt::arg(#v, EasyFmts::castEnum(v))
+#else
+#   error duplicate macro 'ARG' defined!
+#endif
+
+template<typename T>
+decltype(auto) castEnum(const T& vv)
+{
+	using type = std::decay_t<T>;
+	if constexpr (std::is_enum_v<type>)
+		return std::underlying_type_t<type>(vv);
+	else
+		return vv;
+}
+
+// use '@...^' instead of '{...}' as format placeholder
+template<typename... Args>
+inline auto fjson(std::string_view f, Args&&... args)
+{
+	enum { Out, InVar } state { Out };
+	std::string r;
+	std::size_t pre = 0;
+	for(std::size_t i = 0; i != f.size(); ++i)
+	{
+		switch(state)
+		{
+		case Out:
+			switch(f[i])
+			{
+			case '"':
+				i = f.find('"', i + 1);
+				if(i == f.npos) throw std::exception();
+				continue;
+			case '@':
+				state = InVar;
+				r.append(f.substr(pre, i - pre)).append("{");
+				pre = i + 1;
+				continue;
+			case '{':
+				r.append(f.substr(pre, i - pre)).append("{{");
+				pre = i + 1;
+				continue;
+			case '}':
+				r.append(f.substr(pre, i - pre)).append("}}");
+				pre = i + 1;
+				continue;
+			default:
+				continue;
+			}
+		case InVar:
+			if(f[i] == '^')
+			{
+				state = Out;
+				r.append(f.substr(pre, i - pre)).append("}");
+				pre = i + 1;
+			}
+			continue;
+		}
+	}
+	if(pre < f.size()) r.append(f.substr(pre));
+	return fmt::format(fmt::runtime(r), fwd(args)...);
+}
+} // namespace EasyFmts
 
 #ifndef EASY_FMT_NO_USING_LITERALS_NAMESPACE
 UTILITY_DISABLE_WARNING_PUSH
@@ -327,6 +445,6 @@ using namespace EasyFmts::Literals;
 UTILITY_DISABLE_WARNING_POP
 #endif
 
-#include "MacrosUndef.h"
+#include <Utility/MacrosUndef.h>
 
 #endif // EASY_FMT_H

@@ -120,7 +120,7 @@ inline std::string formatHMSZ(std::intmax_t ms)
 	auto [h, m, s, z] = msToHMSZ(ms);
 	if(h != 0) std::format_to(iter, "{}h", h);
 	if(m != 0 || !r.empty()) std::format_to(iter, "{}m", m);
-	std::format_to(iter, "{:.3f}s", s + 0.001 * z);
+	std::format_to(iter, "{:.3f}s", double(s) + 0.001 * double(z));
 	return r;
 }
 } // namespace TimeTool

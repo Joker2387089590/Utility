@@ -91,8 +91,10 @@ struct JsonConverter
 		case QJsonValue::Object:
 			toProtobuf(qv.toObject(), pv->mutable_struct_value());
 			break;
-		case QJsonValue::Undefined: [[unlikely]]
-			break;
+		case QJsonValue::Undefined:
+			[[unlikely]] break;
+		default:
+			[[unlikely]] break;
 		}
 	}
 	
@@ -118,8 +120,10 @@ struct JsonConverter
 		case QJsonValue::Object:
 			toProtobuf(qv.toObject(), pv->mutable_struct_value());
 			break;
-		case QJsonValue::Undefined: [[unlikely]]
-			break;
+		case QJsonValue::Undefined:
+			[[unlikely]] break;
+		default:
+			[[unlikely]] break;
 		}
 	}
 };

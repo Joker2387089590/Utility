@@ -33,15 +33,16 @@ constexpr auto operator""_a(const char16_t* s, std::size_t) -> fmt::detail::udl_
 } // namespace Literals
 
 /// fmt::runtime workaround
-// from spdlog
-// fmt::runtime has just overloaded std::string_view/wstring_view, why???
-#if FMT_VERSION >= 90101
-template <typename Char>
-using fmt_runtime_string = fmt::runtime_format_string<Char>;
-#else
-template <typename Char>
-using fmt_runtime_string = fmt::basic_runtime<Char>;
-#endif
+template<typename Char>
+constexpr auto runtime(const Char* str, std::size_t size) noexcept
+{
+	// fmt::runtime has just overloaded std::string_view/wstring_view, why???
+	// https://github.com/fmtlib/fmt/issues/2458
+	if constexpr (std::is_same_v<Char, char> || std::is_same_v<Char, wchar_t>)
+		return fmt::runtime({str, size});
+	else
+		return fmt::basic_string_view<Char>(str, size);
+}
 
 /// operator""_fmt
 #if __cpp_nontype_template_args < 201911L
@@ -49,11 +50,11 @@ using fmt_runtime_string = fmt::basic_runtime<Char>;
 template<typename Char>
 [[nodiscard]] constexpr auto fmtImpl(const Char* str, std::size_t size) noexcept
 {
-	return [str, size](auto&&... args) {
+	return [=](auto&&... args) {
 		if constexpr (sizeof...(args) == 0)
 			return std::basic_string_view<Char>(str, size);
 		else
-			return fmt::format(fmt_runtime_string<Char>{{str, size}}, fwd(args)...);
+			return fmt::format(runtime(str, size), fwd(args)...);
 	};
 }
 
@@ -75,11 +76,15 @@ template<::Literals::StringLiteral s>
 constexpr auto fmtImpl = [](auto&&... args) {
 	using Char = typename decltype(s)::Char;
 	using View = fmt::basic_string_view<Char>;
-	using Check = fmt::basic_format_string<Char, decltype(args)...>;
 	constexpr auto view = View(s.data(), s.size());
-	[[maybe_unused]] constexpr auto check = Check(view);
+
 	if constexpr (sizeof...(args) == 0)
+	{
+		// we should check the format pattern even if no args
+		using Check = fmt::basic_format_string<Char>;
+		[[maybe_unused]] constexpr auto check = Check(view);
 		return std::basic_string_view<Char>(s.data(), s.size());
+	}
 	else
 		return fmt::format(view, fwd(args)...);
 };
@@ -108,13 +113,12 @@ template<::Literals::StringLiteral s>
 #endif
 
 #if __cpp_nontype_template_args < 201911L
-template<typename Char, typename Color>
-[[nodiscard]] constexpr auto print(std::FILE* file, Color color, const Char* str, std::size_t size)
+template<auto file, typename Color, typename Char>
+[[nodiscard]] constexpr auto print(Color color, const Char* str, std::size_t size)
 {
 #ifndef EASY_FMT_NO_CONSOLE
 	return [=](auto&&... args) constexpr {
-		using View = fmt::basic_string_view<Char>;
-		fmt::print(file, EASY_FMT_COLOR(color) View(str, size), fwd(args)...);
+		fmt::print(file(), EASY_FMT_COLOR(color) runtime(str, size), fwd(args)...);
 		fmt::print("\n");
 	};
 #else
@@ -126,12 +130,16 @@ inline namespace Literals
 {
 [[nodiscard]] inline auto operator""_print(const char* str, std::size_t size)
 {
-	return EasyFmts::print(stdout, fg(fmt::color::UTILITY_EASYFMT_PRINT_COLOR), str, size);
+	constexpr auto color = fg(fmt::color::UTILITY_EASYFMT_PRINT_COLOR);
+	constexpr auto file = [] { return stdout; };
+	return EasyFmts::print<file>(color, str, size);
 }
 
 [[nodiscard]] inline auto operator""_err(const char* str, std::size_t size)
 {
-	return EasyFmts::print(stderr, fg(fmt::color::UTILITY_EASYFMT_ERROR_COLOR), str, size);
+	constexpr auto color = fg(fmt::color::UTILITY_EASYFMT_ERROR_COLOR);
+	constexpr auto file = [] { return stderr; };
+	return EasyFmts::print<file>(color, str, size);
 }
 
 [[nodiscard]] inline auto operator""_fatal(const char* str, std::size_t size)
@@ -151,7 +159,7 @@ template<::Literals::StringLiteral s, typename Color>
 	return [file, color](auto&&... args) {
 		using Char = typename decltype(s)::Char;
 		using View = fmt::basic_string_view<Char>;
-		auto view = View(s.data(), s.size());
+		constexpr auto view = View(s.data(), s.size());
 		fmt::print(file, EASY_FMT_COLOR(color) view, fwd(args)...);
 		fmt::print("\n");
 	};
@@ -196,14 +204,15 @@ template<typename Char>
 {
 	return [=](auto&&... args) -> QString {
 		auto s = fmtImpl(str, size)(fwd(args)...);
+		auto rsize = qsizetype(s.size());
 		if constexpr (std::is_same_v<Char, char>)
-			return QString::fromUtf8(s.data(), s.size());
+			return QString::fromUtf8(s.data(), rsize);
 		else if constexpr (std::is_same_v<Char, wchar_t>)
-			return QString::fromWCharArray(s.data(), s.size());
+			return QString::fromWCharArray(s.data(), rsize);
 		else if constexpr (std::is_same_v<Char, char16_t>)
-			return QString::fromUtf16(s.data(), s.size());
+			return QString::fromUtf16(s.data(), rsize);
 		else if constexpr (std::is_same_v<Char, char32_t>)
-			return QString::fromUcs4(s.data(), s.size());
+			return QString::fromUcs4(s.data(), rsize);
 		else
 			static_assert(!std::is_same_v<Char, Char>, "Unsupported character type for QString");
 	};

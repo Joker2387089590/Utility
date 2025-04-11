@@ -12,7 +12,11 @@ public:
     using StdStringView = std::basic_string_view<Char>;
 
     constexpr StringLiteral(const Char (&str)[N]) { std::copy_n(str, N, value); }
-    constexpr ~StringLiteral() = default;
+
+#if __cplusplus >= 202002L
+    constexpr 
+#endif
+        ~StringLiteral() = default;
 
 	constexpr operator StdStringView() const { return {value}; }
 

@@ -113,12 +113,12 @@ template<::Literals::StringLiteral s>
 #endif
 
 #if __cpp_nontype_template_args < 201911L
-template<auto file, typename Color, typename Char>
-[[nodiscard]] constexpr auto print(Color color, const Char* str, std::size_t size)
+template<typename Color, typename Char>
+[[nodiscard]] constexpr auto print(std::FILE* file, Color color, const Char* str, std::size_t size)
 {
 #ifndef EASY_FMT_NO_CONSOLE
 	return [=](auto&&... args) constexpr {
-		fmt::print(file(), EASY_FMT_COLOR(color) runtime(str, size), fwd(args)...);
+		fmt::print(file, EASY_FMT_COLOR(color) runtime(str, size), fwd(args)...);
 		fmt::print("\n");
 	};
 #else
@@ -131,15 +131,13 @@ inline namespace Literals
 [[nodiscard]] inline auto operator""_print(const char* str, std::size_t size)
 {
 	constexpr auto color = fg(fmt::color::UTILITY_EASYFMT_PRINT_COLOR);
-	constexpr auto file = [] { return stdout; };
-	return EasyFmts::print<file>(color, str, size);
+	return EasyFmts::print(stdout, color, str, size);
 }
 
 [[nodiscard]] inline auto operator""_err(const char* str, std::size_t size)
 {
 	constexpr auto color = fg(fmt::color::UTILITY_EASYFMT_ERROR_COLOR);
-	constexpr auto file = [] { return stderr; };
-	return EasyFmts::print<file>(color, str, size);
+	return EasyFmts::print(stderr, color, str, size);
 }
 
 [[nodiscard]] inline auto operator""_fatal(const char* str, std::size_t size)

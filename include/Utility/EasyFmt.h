@@ -39,9 +39,9 @@ constexpr auto runtime(const Char* str, std::size_t size) noexcept
 	// fmt::runtime has just overloaded std::string_view/wstring_view, why???
 	// https://github.com/fmtlib/fmt/issues/2458
 	if constexpr (std::is_same_v<Char, char> || std::is_same_v<Char, wchar_t>)
-		return fmt::runtime({str, size});
+        return fmt::runtime(fmt::basic_string_view<Char>{str, size});
 	else
-		return fmt::basic_string_view<Char>(str, size);
+        return fmt::basic_string_view<Char>(str, size);
 }
 
 /// operator""_fmt

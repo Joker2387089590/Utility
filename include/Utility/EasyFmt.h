@@ -236,23 +236,20 @@ auto operator""_qfmt(const wchar_t* str, std::size_t size) = delete;
 #else
 
 template<::Literals::StringLiteral l>
-[[nodiscard]] constexpr auto qfmtImpl() noexcept
-{
-	return [](auto&&... args) -> QString {
-		using Char = typename decltype(l)::Char;
-		auto s = fmtImpl<l>(fwd(args)...);
-		if constexpr (std::is_same_v<Char, char>)
-			return QString::fromUtf8(s.data(), s.size());
-		else if constexpr (std::is_same_v<Char, wchar_t>)
-			return QString::fromWCharArray(s.data(), s.size());
-		else if constexpr (std::is_same_v<Char, char16_t>)
-			return QString::fromUtf16(s.data(), s.size());
-		else if constexpr (std::is_same_v<Char, char32_t>)
-			return QString::fromUcs4(s.data(), s.size());
-		else
-			static_assert(!std::is_same_v<Char, Char>, "Unsupported character type for QString");
-	};
-}
+constexpr auto qfmtImpl = [](auto&&... args) -> QString {
+	using Char = typename decltype(l)::Char;
+	auto s = fmtImpl<l>(fwd(args)...);
+	if constexpr (std::is_same_v<Char, char>)
+		return QString::fromUtf8(s.data(), s.size());
+	else if constexpr (std::is_same_v<Char, wchar_t>)
+		return QString::fromWCharArray(s.data(), s.size());
+	else if constexpr (std::is_same_v<Char, char16_t>)
+		return QString::fromUtf16(s.data(), s.size());
+	else if constexpr (std::is_same_v<Char, char32_t>)
+		return QString::fromUcs4(s.data(), s.size());
+	else
+		static_assert(!std::is_same_v<Char, Char>, "Unsupported character type for QString");
+};
 
 inline namespace Literals
 {
@@ -260,7 +257,7 @@ template<::Literals::StringLiteral s>
 [[nodiscard]] constexpr auto operator""_qfmt() { 
 	using Char = typename decltype(s)::Char;
 	static_assert(!std::is_same_v<Char, wchar_t>, "mix QString with wchar_t seems strange...");
-	return qfmtImpl<s>(); 
+	return qfmtImpl<s>; 
 }
 } // inline namespace Literals
 

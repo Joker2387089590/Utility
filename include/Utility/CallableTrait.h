@@ -442,6 +442,21 @@ inline constexpr bool isVariadic = IsVariadic<
 		std::decay_t<decltype(f)>
 	>
 >::value;
+
+template<typename C>
+struct IsMemberOf {
+	template<typename Cx, typename R, typename... Args>
+	using Value = std::is_same<std::decay_t<Cx>, std::decay_t<C>>;
+
+	template<typename Func>
+	static constexpr bool value = Callable<Func>::template ExpandClass<Value>::value;
+};
+
+#ifdef __cpp_concepts
+template<typename Func, typename C>
+concept MemberOf = IsMemberOf<C>::template value<Func>;
+#endif
+
 } // namespace Callables::Detail
 
 namespace Callables
@@ -572,6 +587,12 @@ using Detail::creator;
 using Detail::apply;
 
 using Detail::isVariadic;
+
+using Detail::IsMemberOf;
+
+#ifdef __cpp_concepts
+using Detail::MemberOf;
+#endif
 }
 
 #include <Utility/MacrosUndef.h>

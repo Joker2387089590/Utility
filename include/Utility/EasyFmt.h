@@ -8,6 +8,7 @@
 #include <fmt/compile.h>
 #include <fmt/xchar.h>
 #include <fmt/color.h>
+#include <fmt/std.h>
 
 #if !defined(EASY_FMT_NO_QT) &&  __has_include(<QString>)
 #    include <QString>
@@ -15,6 +16,14 @@
 
 #include <Utility/Macros.h>
 #include <Utility/Literal.h>
+
+#if __cpp_nontype_template_args >= 201911L
+#	 define UTILITY_EASY_FMT_OLD_LITERAL 0
+#elif __clang__ && __clang_major__ >= 12 && __cplusplus >= 202002L
+#	 define UTILITY_EASY_FMT_OLD_LITERAL 0
+#else
+#	 define UTILITY_EASY_FMT_OLD_LITERAL 1
+#endif
 
 namespace EasyFmts
 {
@@ -45,7 +54,7 @@ constexpr auto runtime(const Char* str, std::size_t size) noexcept
 }
 
 /// operator""_fmt
-#if __cpp_nontype_template_args < 201911L
+#if UTILITY_EASY_FMT_OLD_LITERAL
 
 template<typename Char>
 [[nodiscard]] constexpr auto fmtImpl(const Char* str, std::size_t size) noexcept
@@ -70,7 +79,7 @@ inline namespace Literals
 #endif
 } // namespace Literals
 
-#else
+#else // UTILITY_EASY_FMT_OLD_LITERAL
 
 template<::Literals::StringLiteral s>
 constexpr auto fmtImpl = [](auto&&... args) {
@@ -95,7 +104,7 @@ template<::Literals::StringLiteral s>
 [[nodiscard]] constexpr auto operator""_fmt() noexcept { return fmtImpl<s>; }
 } // namespace Literals
 
-#endif
+#endif // UTILITY_EASY_FMT_OLD_LITERAL
 
 /// print
 // On Windows, the stdout and stderr is printed by conhost.exe,
@@ -112,14 +121,28 @@ template<::Literals::StringLiteral s>
 #   define EASY_FMT_COLOR(color) color,
 #endif
 
-#if __cpp_nontype_template_args < 201911L
+template<typename Char> struct NewLine;
+template<> struct NewLine<char> { static constexpr auto value = '\n'; };
+template<> struct NewLine<wchar_t> { static constexpr auto value = L'\n'; };
+// template<> struct NewLine<char8_t> { static constexpr auto value = u8'\n'; }; // TODO: add feature test macro
+template<> struct NewLine<char16_t> { static constexpr auto value = u'\n'; };
+template<> struct NewLine<char32_t> { static constexpr auto value = U'\n'; };
+template<typename Char> inline constexpr Char newLine = NewLine<Char>::value;
+
+#if UTILITY_EASY_FMT_OLD_LITERAL
 template<typename Color, typename Char>
 [[nodiscard]] constexpr auto print(std::FILE* file, Color color, const Char* str, std::size_t size)
 {
 #ifndef EASY_FMT_NO_CONSOLE
 	return [=](auto&&... args) constexpr {
-		fmt::print(file, EASY_FMT_COLOR(color) runtime(str, size), fwd(args)...);
-		fmt::print("\n");
+#ifdef __cpp_lib_smart_ptr_for_overwrite
+		auto buf = std::make_unique_for_overwrite<Char[]>(size + 1);
+#else
+		auto buf = std::make_unique<Char[]>(size + 1);
+#endif
+		auto back = std::copy(str, str + size, buf.get());
+		*back = newLine<Char>;
+		fmt::print(file, EASY_FMT_COLOR(color) runtime(buf.get(), size + 1), fwd(args)...);
 	};
 #else
 	return [](auto&&...) {};
@@ -149,7 +172,16 @@ inline namespace Literals
 }
 } // namespace Literals
 
-#else
+#else // UTILITY_EASY_FMT_OLD_LITERAL
+
+template<typename Char, std::size_t N>
+consteval auto patternWithNewLine(const ::Literals::StringLiteral<Char, N>& s)
+{
+	::Literals::StringLiteral<Char, N + 1> p;
+	std::copy(std::begin(s.value), std::end(s.value), std::begin(p.value));
+	p.value[N - 1] = newLine<Char>;
+	return p;
+}
 
 template<::Literals::StringLiteral s, typename Color>
 [[nodiscard]] constexpr auto print(std::FILE* file, Color color) noexcept
@@ -159,7 +191,6 @@ template<::Literals::StringLiteral s, typename Color>
 		using View = fmt::basic_string_view<Char>;
 		constexpr auto view = View(s.data(), s.size());
 		fmt::print(file, EASY_FMT_COLOR(color) view, fwd(args)...);
-		fmt::print("\n");
 	};
 }
 
@@ -168,13 +199,15 @@ inline namespace Literals
 template<::Literals::StringLiteral s>
 [[nodiscard]] inline auto operator""_print()
 {
-	return EasyFmts::print<s>(stdout, fg(fmt::color::UTILITY_EASYFMT_PRINT_COLOR));
+	constexpr auto pattern = patternWithNewLine(s);
+	return EasyFmts::print<pattern>(stdout, fg(fmt::color::UTILITY_EASYFMT_PRINT_COLOR));
 }
 
 template<::Literals::StringLiteral s>
 [[nodiscard]] inline auto operator""_err()
 {
-	return EasyFmts::print<s>(stderr, fg(fmt::color::UTILITY_EASYFMT_ERROR_COLOR));
+	constexpr auto pattern = patternWithNewLine(s);
+	return EasyFmts::print<pattern>(stderr, fg(fmt::color::UTILITY_EASYFMT_ERROR_COLOR));
 }
 
 template<::Literals::StringLiteral s>
@@ -186,7 +219,9 @@ template<::Literals::StringLiteral s>
 	};
 }
 } // namespace Literals
-#endif
+
+#endif // UTILITY_EASY_FMT_OLD_LITERAL
+
 } // namespace EasyFmts
 
 /// Qt support
@@ -194,7 +229,7 @@ template<::Literals::StringLiteral s>
 #ifndef EASY_FMT_NO_QT
 namespace EasyFmts
 {
-#if __cpp_nontype_template_args < 201911L
+#if UTILITY_EASY_FMT_OLD_LITERAL
 // WORKAROUND: MSVC bug
 // https://developercommunity.visualstudio.com/t/ICE-when-importing-user-defined-literal/10095949
 template<typename Char>
@@ -233,7 +268,7 @@ inline namespace Literals
 auto operator""_qfmt(const wchar_t* str, std::size_t size) = delete;
 } // namespace Literals
 
-#else
+#else // UTILITY_EASY_FMT_OLD_LITERAL
 
 template<::Literals::StringLiteral l>
 constexpr auto qfmtImpl = [](auto&&... args) -> QString {
@@ -261,7 +296,7 @@ template<::Literals::StringLiteral s>
 }
 } // inline namespace Literals
 
-#endif
+#endif // UTILITY_EASY_FMT_OLD_LITERAL
 
 } // namespace EasyFmts
 

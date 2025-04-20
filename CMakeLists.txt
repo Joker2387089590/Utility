@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.28)
 project(Utility VERSION 0.1.0 LANGUAGES CXX)
 
+### add sources
 set(sources
 	TypeList.h
 	CallableTrait.h
@@ -45,6 +46,7 @@ find_package(fmt CONFIG QUIET)
 find_package(fftw3 CONFIG QUIET)
 find_package(nlohmann_json CONFIG QUIET)
 find_package(Protobuf CONFIG QUIET)
+find_package(asio CONFIG QUIET)
 
 # Qt
 option(UTILITY_USE_QT_CORE_WRAPPERS "use Qt::Core wrappers" ${${UTILITY_Qt}Core_FOUND})
@@ -112,11 +114,7 @@ if(UTILITY_NOT_USE_ROLLBACKS_NAMESPACE)
 endif()
 
 # convert Qt JSON and nlohmann json
-if(${nlohmann_json_FOUND} AND ${QT_FOUND})
-	set(UTILITY_USE_NLOHMANN_JSON_QT_DEFAULT ON)
-else()
-	set(UTILITY_USE_NLOHMANN_JSON_QT_DEFAULT OFF)
-endif()
+set(UTILITY_USE_NLOHMANN_JSON_QT_DEFAULT $<AND:$<BOOL:${nlohmann_json_FOUND}>,$<BOOL:${QT_FOUND}>>)
 option(UTILITY_USE_NLOHMANN_JSON_QT "use nlohmann json wrapper" ${UTILITY_USE_NLOHMANN_JSON_QT_DEFAULT})
 if(UTILITY_USE_NLOHMANN_JSON_QT)
 	list(APPEND sources NlohmannQt.h)
@@ -127,11 +125,7 @@ if(UTILITY_USE_NLOHMANN_JSON_QT)
 endif()
 
 # convert Qt JSON and Protobuf Struct
-if(${Protobuf_FOUND} AND ${QT_FOUND})
-	set(UTILITY_USE_PROTOBUF_QT_DEFAULT ON)
-else()
-	set(UTILITY_USE_PROTOBUF_QT_DEFAULT OFF)
-endif()
+set(UTILITY_USE_PROTOBUF_QT_DEFAULT $<AND:$<BOOL:${Protobuf_FOUND}>,$<BOOL:${QT_FOUND}>>)
 option(UTILITY_USE_PROTOBUF_QT "use protobuf Struct wrapper" ${UTILITY_USE_PROTOBUF_QT_DEFAULT})
 if(UTILITY_USE_PROTOBUF_QT)
 	list(APPEND sources ProtobufQt.h)
@@ -142,11 +136,7 @@ if(UTILITY_USE_PROTOBUF_QT)
 endif()
 
 # convert nlohmann json and Protobuf Struct
-if(${Protobuf_FOUND} AND ${nlohmann_json_FOUND})
-	set(UTILITY_USE_NLOHMANN_JSON_PROTOBUF_DEFAULT ON)
-else()
-	set(UTILITY_USE_NLOHMANN_JSON_PROTOBUF_DEFAULT OFF)
-endif()
+set(UTILITY_USE_NLOHMANN_JSON_PROTOBUF_DEFAULT $<AND:$<BOOL:${Protobuf_FOUND}>,$<BOOL:${nlohmann_json_FOUND}>>)
 option(UTILITY_USE_NLOHMANN_JSON_PROTOBUF "conversion between protobuf Struct and nlohmann json" ${UTILITY_USE_NLOHMANN_JSON_PROTOBUF_DEFAULT})
 if(UTILITY_USE_NLOHMANN_JSON_PROTOBUF)
 	list(APPEND sources NlohmannProtobuf.h)
@@ -158,13 +148,7 @@ endif()
 
 # win error
 if(WIN32)
-	if(${QT_FOUND})
-		set(UTILITY_WINERROR_NO_QT_DEFAULT OFF)
-	else()
-		set(UTILITY_WINERROR_NO_QT_DEFAULT ON)
-	endif()
-	option(UTILITY_WINERROR_NO_QT "disable Qt support in WinError.h" ${UTILITY_WINERROR_NO_QT_DEFAULT})
-
+	option(UTILITY_WINERROR_NO_QT "disable Qt support in WinError.h" $<NOT:$<BOOL:${QT_FOUND}>>)
 	list(APPEND sources WinError.h)
 	if(${UTILITY_WINERROR_NO_QT})
 		list(APPEND definitions UTILITY_WINERROR_NO_QT)
@@ -172,16 +156,19 @@ if(WIN32)
 endif()
 
 # time tool
-if(${QT_FOUND})
-	set(UTILITY_TIMETOOL_NO_QDATETIME_DEFAULT OFF)
-else()
-	set(UTILITY_TIMETOOL_NO_QDATETIME_DEFAULT ON)
-endif()
-option(UTILITY_TIMETOOL_NO_QDATETIME "disable Qt support in TimeTool.h" ${UTILITY_TIMETOOL_NO_QDATETIME_DEFAULT})
+option(UTILITY_TIMETOOL_NO_QDATETIME "disable Qt support in TimeTool.h" $<NOT:$<BOOL:${QT_FOUND}>)
 if(${UTILITY_TIMETOOL_NO_QDATETIME})
 	list(APPEND definitions UTILITY_TIMETOOL_NO_QDATETIME)
 endif()
 
+# asio
+option(UTILITY_USE_CO_ASIO_QT "use asio wrapper" $<AND:$<BOOL:${asio_FOUND}>,$<BOOL:${QT_FOUND}>>)
+if(UTILITY_USE_CO_ASIO_QT)
+	list(APPEND sources CoAsioQt.h)
+	list(APPEND link_libs asio::asio)
+endif()
+
+### add library
 set(source_paths)
 foreach(source IN LISTS sources)
 	list(APPEND source_paths "include/Utility/${source}")
@@ -217,6 +204,7 @@ target_link_libraries(Utility INTERFACE ${link_libs})
 
 target_compile_definitions(Utility INTERFACE ${definitions})
 
+### install
 install(
 	TARGETS Utility
 	EXPORT UtilityTargets

@@ -11,12 +11,19 @@ public:
 	using Char = C;
     using StdStringView = std::basic_string_view<Char>;
 
+    constexpr StringLiteral() : value{} {}
     constexpr StringLiteral(const Char (&str)[N]) { std::copy_n(str, N, value); }
+
+    constexpr StringLiteral(const StringLiteral&) noexcept = default;
+    constexpr StringLiteral& operator=(const StringLiteral&) & noexcept = default;
+    
+    constexpr StringLiteral(StringLiteral&&) noexcept = default;
+    constexpr StringLiteral& operator=(StringLiteral&&) & noexcept = default;
 
 #if __cplusplus >= 202002L
     constexpr 
 #endif
-        ~StringLiteral() = default;
+        ~StringLiteral() noexcept = default;
 
 	constexpr operator StdStringView() const { return {value}; }
 
@@ -44,12 +51,6 @@ public:
 
 template<typename Char, std::size_t N>
 StringLiteral(const Char (&str)[N]) -> StringLiteral<Char, N>;
-
-template<typename C, typename T>
-struct IsStringLiteral : std::false_type {};
-
-template<typename Char, std::size_t N>
-struct IsStringLiteral<Char, StringLiteral<Char, N>> : std::true_type {};
 
 template<typename T, typename Char, std::size_t N>
 constexpr bool operator==(const T& v, const StringLiteral<Char, N>& l) noexcept

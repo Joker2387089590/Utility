@@ -10,8 +10,8 @@
 #include <fmt/color.h>
 #include <fmt/std.h>
 
-#if !defined(EASY_FMT_NO_QT) &&  __has_include(<QString>)
-#    include <QString>
+#if !defined(EASY_FMT_NO_QT)
+#    include <Utility/FmtQt.h>
 #endif
 
 #include <Utility/Macros.h>
@@ -299,114 +299,6 @@ template<::Literals::StringLiteral s>
 #endif // UTILITY_EASY_FMT_OLD_LITERAL
 
 } // namespace EasyFmts
-
-using U16Formatter = fmt::formatter<std::u16string_view, char16_t>;
-using CFormatter = fmt::formatter<std::string_view, char>;
-using WFormatter = fmt::formatter<std::wstring_view, wchar_t>;
-
-template<>
-struct fmt::formatter<QString, char16_t> : U16Formatter
-{
-	using U16Formatter::parse;
-
-	template <typename FormatContext>
-	auto format(const QString& s, FormatContext& context) const
-	{
-		auto data = reinterpret_cast<const char16_t*>(s.utf16());
-		auto size = std::size_t(s.size());
-		return U16Formatter::format({data, size}, context);
-	}
-};
-
-template<>
-struct fmt::formatter<QString, char> : CFormatter
-{
-	using CFormatter::parse;
-
-	template <typename FormatContext>
-	auto format(const QString& s, FormatContext& context) const
-	{
-		return CFormatter::format(s.toStdString(), context);
-	}
-};
-
-template<>
-struct fmt::formatter<QString, wchar_t> : WFormatter
-{
-	using WFormatter::parse;
-
-	template <typename FormatContext>
-	auto format(const QString& s, FormatContext& context) const
-	{
-		return WFormatter::format(s.toStdWString(), context);
-	}
-};
-
-template<>
-struct fmt::formatter<QByteArray, char> : CFormatter
-{
-	using CFormatter::parse;
-	template <typename FormatContext>
-	auto format(const QByteArray& s, FormatContext& context) const
-	{
-		auto view = std::string_view(s.data(), std::size_t(s.size()));
-		return CFormatter::format(view, context);
-	}
-};
-
-template<>
-struct fmt::formatter<QLatin1String, char> : CFormatter
-{
-	using CFormatter::parse;
-	template <typename FormatContext>
-	auto format(const QLatin1String& s, FormatContext& context) const
-	{
-		auto view = std::string_view(s.data(), std::size_t(s.size()));
-		return CFormatter::format(view, context);
-	}
-};
-
-template<>
-struct fmt::formatter<QChar, char16_t> : fmt::formatter<char16_t, char16_t>
-{
-	using Base = fmt::formatter<char16_t, char16_t>;
-	using Base::parse;
-	template <typename FormatContext>
-	auto format(QChar c, FormatContext& context) const
-	{
-		return Base::format(c.unicode(), context);
-	}
-};
-
-template<>
-struct fmt::formatter<QChar, char> : fmt::formatter<char, char>
-{
-	using Base = fmt::formatter<char, char>;
-	using Base::parse;
-	template <typename FormatContext>
-	auto format(QChar c, FormatContext& context) const
-	{
-		return Base::format(c.toLatin1(), context);
-	}
-};
-
-template<>
-struct fmt::formatter<QChar, wchar_t> : fmt::formatter<wchar_t, wchar_t>
-{
-	using Base = fmt::formatter<wchar_t, wchar_t>;
-	using Base::parse;
-	template <typename FormatContext>
-	auto format(QChar c, FormatContext& context) const
-	{
-		// QChar is utf-16
-		// wchar_t is utf-16 on Windows or usc-4 on other platforms
-		static_assert(sizeof(QChar) <= sizeof(wchar_t));
-
-		wchar_t wc = 0;
-		[[maybe_unused]] auto size = QStringView(&c, 1).toWCharArray(&wc);
-		return Base::format(wc, context);
-	}
-};
 
 #endif
 

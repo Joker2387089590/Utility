@@ -100,7 +100,7 @@ struct fmt::formatter<QByteArrayView, char> : fmt::formatter<std::string_view, c
     template <typename FormatContext>
 	auto format(QByteArrayView view, FormatContext& context) const
 	{
-		return Base::format(std::string_view(view), context);
+		return Base::format(std::string_view(view.data(), std::size_t(view.size())), context);
     }
 };
 

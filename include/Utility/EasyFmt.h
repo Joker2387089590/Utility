@@ -143,7 +143,12 @@ template<typename Color, typename Char>
 #endif
 		auto back = std::copy(str, str + size, buf.get());
 		*back = newLine<Char>;
-		fmt::print(file, EASY_FMT_COLOR(color) runtime(buf.get(), size + 1), fwd(args)...);
+		try {
+			fmt::print(file, EASY_FMT_COLOR(color) runtime(buf.get(), size + 1), fwd(args)...);
+		}
+		catch(const std::system_error&) {
+			return;
+		}
 	};
 #else
 	return [](auto&&...) {};
@@ -187,12 +192,21 @@ consteval auto patternWithNewLine(const ::Literals::StringLiteral<Char, N>& s)
 template<::Literals::StringLiteral s, typename Color>
 [[nodiscard]] constexpr auto print(std::FILE* file, Color color) noexcept
 {
+#ifndef EASY_FMT_NO_CONSOLE
 	return [file, color](auto&&... args) {
 		using Char = typename decltype(s)::Char;
 		using View = fmt::basic_string_view<Char>;
 		constexpr auto view = View(s.data(), s.size());
-		fmt::print(file, EASY_FMT_COLOR(color) view, fwd(args)...);
+		try {
+			fmt::print(file, EASY_FMT_COLOR(color) view, fwd(args)...);
+		}
+		catch(const std::system_error&) {
+			return;
+		}
 	};
+#else
+	return [](auto&&...) {};
+#endif
 }
 
 inline namespace Literals

@@ -19,7 +19,7 @@
 
 #if __cpp_nontype_template_args >= 201911L
 #	 define UTILITY_EASY_FMT_OLD_LITERAL 0
-#elif __clang__ && __clang_major__ >= 12 && __cplusplus >= 202002L
+#elif __clang__ && __clang_major__ >= 20 && __cplusplus >= 202002L
 #	 define UTILITY_EASY_FMT_OLD_LITERAL 0
 #else
 #	 define UTILITY_EASY_FMT_OLD_LITERAL 1
@@ -90,8 +90,8 @@ constexpr auto fmtImpl = [](auto&&... args) {
 	if constexpr (sizeof...(args) == 0)
 	{
 		// we should check the format pattern even if no args
-		using Check = fmt::basic_format_string<Char>;
-		[[maybe_unused]] constexpr auto check = Check(view);
+		// using Check = fmt::basic_format_string<Char>;
+		// [[maybe_unused]] constexpr auto check = Check(view);
 		return std::basic_string_view<Char>(s.data(), s.size());
 	}
 	else

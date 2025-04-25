@@ -82,20 +82,19 @@ inline namespace Literals
 #else // UTILITY_EASY_FMT_OLD_LITERAL
 
 template<::Literals::StringLiteral s>
-constexpr auto fmtImpl = [](auto&&... args) {
+inline constexpr auto fmtImpl = [](auto&&... args) {
 	using Char = typename decltype(s)::Char;
 	using View = fmt::basic_string_view<Char>;
-	constexpr auto view = View(s.data(), s.size());
+	constexpr auto view = View{s.data(), s.size()};
 
+	// we should check the format pattern even if no args
+	using Check = fmt::basic_format_string<Char, std::decay_t<decltype(args)>...>;
+	[[maybe_unused]] constexpr auto check = Check{view};
+	
 	if constexpr (sizeof...(args) == 0)
-	{
-		// we should check the format pattern even if no args
-		using Check = fmt::basic_format_string<Char>;
-		[[maybe_unused]] constexpr auto check = Check(view);
 		return std::basic_string_view<Char>(s.data(), s.size());
-	}
 	else
-		return fmt::format(view, fwd(args)...);
+		return fmt::format(view, std::forward<decltype(args)>(args)...);
 };
 
 inline namespace Literals
@@ -124,7 +123,9 @@ template<::Literals::StringLiteral s>
 template<typename Char> struct NewLine;
 template<> struct NewLine<char> { static constexpr auto value = '\n'; };
 template<> struct NewLine<wchar_t> { static constexpr auto value = L'\n'; };
-// template<> struct NewLine<char8_t> { static constexpr auto value = u8'\n'; }; // TODO: add feature test macro
+#ifdef __cpp_char8_t
+template<> struct NewLine<char8_t> { static constexpr auto value = u8'\n'; };
+#endif
 template<> struct NewLine<char16_t> { static constexpr auto value = u'\n'; };
 template<> struct NewLine<char32_t> { static constexpr auto value = U'\n'; };
 template<typename Char> inline constexpr Char newLine = NewLine<Char>::value;
@@ -271,17 +272,17 @@ auto operator""_qfmt(const wchar_t* str, std::size_t size) = delete;
 #else // UTILITY_EASY_FMT_OLD_LITERAL
 
 template<::Literals::StringLiteral l>
-constexpr auto qfmtImpl = [](auto&&... args) -> QString {
+inline constexpr auto qfmtImpl = [](auto&&... args) -> QString {
 	using Char = typename decltype(l)::Char;
 	auto s = fmtImpl<l>(fwd(args)...);
 	if constexpr (std::is_same_v<Char, char>)
-		return QString::fromUtf8(s.data(), s.size());
+		return QString::fromUtf8(s.data(), qsizetype(s.size()));
 	else if constexpr (std::is_same_v<Char, wchar_t>)
-		return QString::fromWCharArray(s.data(), s.size());
+		return QString::fromWCharArray(s.data(), qsizetype(s.size()));
 	else if constexpr (std::is_same_v<Char, char16_t>)
-		return QString::fromUtf16(s.data(), s.size());
+		return QString::fromUtf16(s.data(), qsizetype(s.size()));
 	else if constexpr (std::is_same_v<Char, char32_t>)
-		return QString::fromUcs4(s.data(), s.size());
+		return QString::fromUcs4(s.data(), qsizetype(s.size()));
 	else
 		static_assert(!std::is_same_v<Char, Char>, "Unsupported character type for QString");
 };

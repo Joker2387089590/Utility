@@ -32,7 +32,7 @@ struct fmt::formatter<QStringView, Char> : fmt::formatter<std::basic_string_view
 			// wchar_t is utf-16 on Windows or usc-4(utf-32) on other platforms
 			static_assert(sizeof(QChar) <= sizeof(wchar_t));
 			fmt::basic_memory_buffer<wchar_t> buffer;
-			buffer.resize(s.size());
+			buffer.resize(std::size_t(s.size()));
 			auto size = s.toWCharArray(buffer.data());
 			return Base::format({buffer.data(), std::size_t(size)}, context);
 		}

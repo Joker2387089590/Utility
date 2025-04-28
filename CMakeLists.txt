@@ -45,7 +45,7 @@ endif()
 find_package(fmt CONFIG QUIET)
 find_package(fftw3 CONFIG QUIET)
 find_package(nlohmann_json CONFIG QUIET)
-find_package(protobuf CONFIG QUIET)
+find_package(Protobuf CONFIG QUIET)
 find_package(asio CONFIG QUIET)
 
 # Qt
@@ -130,7 +130,7 @@ if(UTILITY_USE_NLOHMANN_JSON_QT)
 endif()
 
 # convert Qt JSON and Protobuf Struct
-if(${protobuf_FOUND} AND ${QT_FOUND})
+if(${Protobuf_FOUND} AND ${QT_FOUND})
     set(UTILITY_USE_PROTOBUF_QT_DEFAULT 1)
 else()
     set(UTILITY_USE_PROTOBUF_QT_DEFAULT 0)

@@ -1,5 +1,6 @@
 #pragma once
 #include <functional>
+#include "Macros.h"
 
 namespace RollBacks
 {
@@ -34,5 +35,10 @@ void resetCleans(Cs&... clean) noexcept
 
 // back compatibility
 #ifndef UTILITY_NOT_USE_ROLLBACKS_NAMESPACE
+UTILITY_DISABLE_WARNING_HEADER_HYGIENE
+UTILITY_DISABLE_WARNING_PUSH
 using namespace RollBacks;
+UTILITY_DISABLE_WARNING_POP
 #endif
+
+#include "MacrosUndef.h"

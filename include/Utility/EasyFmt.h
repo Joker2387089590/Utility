@@ -8,13 +8,22 @@
 #include <fmt/compile.h>
 #include <fmt/xchar.h>
 #include <fmt/color.h>
+#include <fmt/std.h>
 
-#if !defined(EASY_FMT_NO_QT) &&  __has_include(<QString>)
-#    include <QString>
+#if !defined(EASY_FMT_NO_QT)
+#    include <Utility/FmtQt.h>
 #endif
 
 #include <Utility/Macros.h>
 #include <Utility/Literal.h>
+
+#if __cpp_nontype_template_args >= 201911L
+#	 define UTILITY_EASY_FMT_OLD_LITERAL 0
+#elif __clang__ && __clang_major__ >= 12 && __cplusplus >= 202002L
+#	 define UTILITY_EASY_FMT_OLD_LITERAL 0
+#else
+#	 define UTILITY_EASY_FMT_OLD_LITERAL 1
+#endif
 
 namespace EasyFmts
 {
@@ -45,7 +54,7 @@ constexpr auto runtime(const Char* str, std::size_t size) noexcept
 }
 
 /// operator""_fmt
-#if __cpp_nontype_template_args < 201911L
+#if UTILITY_EASY_FMT_OLD_LITERAL
 
 template<typename Char>
 [[nodiscard]] constexpr auto fmtImpl(const Char* str, std::size_t size) noexcept
@@ -70,23 +79,22 @@ inline namespace Literals
 #endif
 } // namespace Literals
 
-#else
+#else // UTILITY_EASY_FMT_OLD_LITERAL
 
 template<::Literals::StringLiteral s>
-constexpr auto fmtImpl = [](auto&&... args) {
+inline constexpr auto fmtImpl = [](auto&&... args) {
 	using Char = typename decltype(s)::Char;
 	using View = fmt::basic_string_view<Char>;
-	constexpr auto view = View(s.data(), s.size());
+	constexpr auto view = View{s.data(), s.size()};
 
+	// we should check the format pattern even if no args
+	using Check = fmt::basic_format_string<Char, std::decay_t<decltype(args)>...>;
+	[[maybe_unused]] constexpr auto check = Check{view};
+	
 	if constexpr (sizeof...(args) == 0)
-	{
-		// we should check the format pattern even if no args
-		using Check = fmt::basic_format_string<Char>;
-		[[maybe_unused]] constexpr auto check = Check(view);
 		return std::basic_string_view<Char>(s.data(), s.size());
-	}
 	else
-		return fmt::format(view, fwd(args)...);
+		return fmt::format(view, std::forward<decltype(args)>(args)...);
 };
 
 inline namespace Literals
@@ -95,7 +103,7 @@ template<::Literals::StringLiteral s>
 [[nodiscard]] constexpr auto operator""_fmt() noexcept { return fmtImpl<s>; }
 } // namespace Literals
 
-#endif
+#endif // UTILITY_EASY_FMT_OLD_LITERAL
 
 /// print
 // On Windows, the stdout and stderr is printed by conhost.exe,
@@ -112,14 +120,35 @@ template<::Literals::StringLiteral s>
 #   define EASY_FMT_COLOR(color) color,
 #endif
 
-#if __cpp_nontype_template_args < 201911L
+template<typename Char> struct NewLine;
+template<> struct NewLine<char> { static constexpr auto value = '\n'; };
+template<> struct NewLine<wchar_t> { static constexpr auto value = L'\n'; };
+#ifdef __cpp_char8_t
+template<> struct NewLine<char8_t> { static constexpr auto value = u8'\n'; };
+#endif
+template<> struct NewLine<char16_t> { static constexpr auto value = u'\n'; };
+template<> struct NewLine<char32_t> { static constexpr auto value = U'\n'; };
+template<typename Char> inline constexpr Char newLine = NewLine<Char>::value;
+
+#if UTILITY_EASY_FMT_OLD_LITERAL
 template<typename Color, typename Char>
 [[nodiscard]] constexpr auto print(std::FILE* file, Color color, const Char* str, std::size_t size)
 {
 #ifndef EASY_FMT_NO_CONSOLE
 	return [=](auto&&... args) constexpr {
-		fmt::print(file, EASY_FMT_COLOR(color) runtime(str, size), fwd(args)...);
-		fmt::print("\n");
+#ifdef __cpp_lib_smart_ptr_for_overwrite
+		auto buf = std::make_unique_for_overwrite<Char[]>(size + 1);
+#else
+		auto buf = std::make_unique<Char[]>(size + 1);
+#endif
+		auto back = std::copy(str, str + size, buf.get());
+		*back = newLine<Char>;
+		try {
+			fmt::print(file, EASY_FMT_COLOR(color) runtime(buf.get(), size + 1), fwd(args)...);
+		}
+		catch(const std::system_error&) {
+			return;
+		}
 	};
 #else
 	return [](auto&&...) {};
@@ -149,18 +178,35 @@ inline namespace Literals
 }
 } // namespace Literals
 
-#else
+#else // UTILITY_EASY_FMT_OLD_LITERAL
+
+template<typename Char, std::size_t N>
+consteval auto patternWithNewLine(const ::Literals::StringLiteral<Char, N>& s)
+{
+	::Literals::StringLiteral<Char, N + 1> p;
+	std::copy(std::begin(s.value), std::end(s.value), std::begin(p.value));
+	p.value[N - 1] = newLine<Char>;
+	return p;
+}
 
 template<::Literals::StringLiteral s, typename Color>
 [[nodiscard]] constexpr auto print(std::FILE* file, Color color) noexcept
 {
+#ifndef EASY_FMT_NO_CONSOLE
 	return [file, color](auto&&... args) {
 		using Char = typename decltype(s)::Char;
 		using View = fmt::basic_string_view<Char>;
 		constexpr auto view = View(s.data(), s.size());
-		fmt::print(file, EASY_FMT_COLOR(color) view, fwd(args)...);
-		fmt::print("\n");
+		try {
+			fmt::print(file, EASY_FMT_COLOR(color) view, fwd(args)...);
+		}
+		catch(const std::system_error&) {
+			return;
+		}
 	};
+#else
+	return [](auto&&...) {};
+#endif
 }
 
 inline namespace Literals
@@ -168,13 +214,15 @@ inline namespace Literals
 template<::Literals::StringLiteral s>
 [[nodiscard]] inline auto operator""_print()
 {
-	return EasyFmts::print<s>(stdout, fg(fmt::color::UTILITY_EASYFMT_PRINT_COLOR));
+	constexpr auto pattern = patternWithNewLine(s);
+	return EasyFmts::print<pattern>(stdout, fg(fmt::color::UTILITY_EASYFMT_PRINT_COLOR));
 }
 
 template<::Literals::StringLiteral s>
 [[nodiscard]] inline auto operator""_err()
 {
-	return EasyFmts::print<s>(stderr, fg(fmt::color::UTILITY_EASYFMT_ERROR_COLOR));
+	constexpr auto pattern = patternWithNewLine(s);
+	return EasyFmts::print<pattern>(stderr, fg(fmt::color::UTILITY_EASYFMT_ERROR_COLOR));
 }
 
 template<::Literals::StringLiteral s>
@@ -186,7 +234,9 @@ template<::Literals::StringLiteral s>
 	};
 }
 } // namespace Literals
-#endif
+
+#endif // UTILITY_EASY_FMT_OLD_LITERAL
+
 } // namespace EasyFmts
 
 /// Qt support
@@ -194,7 +244,7 @@ template<::Literals::StringLiteral s>
 #ifndef EASY_FMT_NO_QT
 namespace EasyFmts
 {
-#if __cpp_nontype_template_args < 201911L
+#if UTILITY_EASY_FMT_OLD_LITERAL
 // WORKAROUND: MSVC bug
 // https://developercommunity.visualstudio.com/t/ICE-when-importing-user-defined-literal/10095949
 template<typename Char>
@@ -233,26 +283,23 @@ inline namespace Literals
 auto operator""_qfmt(const wchar_t* str, std::size_t size) = delete;
 } // namespace Literals
 
-#else
+#else // UTILITY_EASY_FMT_OLD_LITERAL
 
 template<::Literals::StringLiteral l>
-[[nodiscard]] constexpr auto qfmtImpl() noexcept
-{
-	return [](auto&&... args) -> QString {
-		using Char = typename decltype(l)::Char;
-		auto s = fmtImpl<l>(fwd(args)...);
-		if constexpr (std::is_same_v<Char, char>)
-			return QString::fromUtf8(s.data(), s.size());
-		else if constexpr (std::is_same_v<Char, wchar_t>)
-			return QString::fromWCharArray(s.data(), s.size());
-		else if constexpr (std::is_same_v<Char, char16_t>)
-			return QString::fromUtf16(s.data(), s.size());
-		else if constexpr (std::is_same_v<Char, char32_t>)
-			return QString::fromUcs4(s.data(), s.size());
-		else
-			static_assert(!std::is_same_v<Char, Char>, "Unsupported character type for QString");
-	};
-}
+inline constexpr auto qfmtImpl = [](auto&&... args) -> QString {
+	using Char = typename decltype(l)::Char;
+	auto s = fmtImpl<l>(fwd(args)...);
+	if constexpr (std::is_same_v<Char, char>)
+		return QString::fromUtf8(s.data(), qsizetype(s.size()));
+	else if constexpr (std::is_same_v<Char, wchar_t>)
+		return QString::fromWCharArray(s.data(), qsizetype(s.size()));
+	else if constexpr (std::is_same_v<Char, char16_t>)
+		return QString::fromUtf16(s.data(), qsizetype(s.size()));
+	else if constexpr (std::is_same_v<Char, char32_t>)
+		return QString::fromUcs4(s.data(), qsizetype(s.size()));
+	else
+		static_assert(!std::is_same_v<Char, Char>, "Unsupported character type for QString");
+};
 
 inline namespace Literals
 {
@@ -260,121 +307,13 @@ template<::Literals::StringLiteral s>
 [[nodiscard]] constexpr auto operator""_qfmt() { 
 	using Char = typename decltype(s)::Char;
 	static_assert(!std::is_same_v<Char, wchar_t>, "mix QString with wchar_t seems strange...");
-	return qfmtImpl<s>(); 
+	return qfmtImpl<s>; 
 }
 } // inline namespace Literals
 
-#endif
+#endif // UTILITY_EASY_FMT_OLD_LITERAL
 
 } // namespace EasyFmts
-
-using U16Formatter = fmt::formatter<std::u16string_view, char16_t>;
-using CFormatter = fmt::formatter<std::string_view, char>;
-using WFormatter = fmt::formatter<std::wstring_view, wchar_t>;
-
-template<>
-struct fmt::formatter<QString, char16_t> : U16Formatter
-{
-	using U16Formatter::parse;
-
-	template <typename FormatContext>
-	auto format(const QString& s, FormatContext& context) const
-	{
-		auto data = reinterpret_cast<const char16_t*>(s.utf16());
-		auto size = std::size_t(s.size());
-		return U16Formatter::format({data, size}, context);
-	}
-};
-
-template<>
-struct fmt::formatter<QString, char> : CFormatter
-{
-	using CFormatter::parse;
-
-	template <typename FormatContext>
-	auto format(const QString& s, FormatContext& context) const
-	{
-		return CFormatter::format(s.toStdString(), context);
-	}
-};
-
-template<>
-struct fmt::formatter<QString, wchar_t> : WFormatter
-{
-	using WFormatter::parse;
-
-	template <typename FormatContext>
-	auto format(const QString& s, FormatContext& context) const
-	{
-		return WFormatter::format(s.toStdWString(), context);
-	}
-};
-
-template<>
-struct fmt::formatter<QByteArray, char> : CFormatter
-{
-	using CFormatter::parse;
-	template <typename FormatContext>
-	auto format(const QByteArray& s, FormatContext& context) const
-	{
-		auto view = std::string_view(s.data(), std::size_t(s.size()));
-		return CFormatter::format(view, context);
-	}
-};
-
-template<>
-struct fmt::formatter<QLatin1String, char> : CFormatter
-{
-	using CFormatter::parse;
-	template <typename FormatContext>
-	auto format(const QLatin1String& s, FormatContext& context) const
-	{
-		auto view = std::string_view(s.data(), std::size_t(s.size()));
-		return CFormatter::format(view, context);
-	}
-};
-
-template<>
-struct fmt::formatter<QChar, char16_t> : fmt::formatter<char16_t, char16_t>
-{
-	using Base = fmt::formatter<char16_t, char16_t>;
-	using Base::parse;
-	template <typename FormatContext>
-	auto format(QChar c, FormatContext& context) const
-	{
-		return Base::format(c.unicode(), context);
-	}
-};
-
-template<>
-struct fmt::formatter<QChar, char> : fmt::formatter<char, char>
-{
-	using Base = fmt::formatter<char, char>;
-	using Base::parse;
-	template <typename FormatContext>
-	auto format(QChar c, FormatContext& context) const
-	{
-		return Base::format(c.toLatin1(), context);
-	}
-};
-
-template<>
-struct fmt::formatter<QChar, wchar_t> : fmt::formatter<wchar_t, wchar_t>
-{
-	using Base = fmt::formatter<wchar_t, wchar_t>;
-	using Base::parse;
-	template <typename FormatContext>
-	auto format(QChar c, FormatContext& context) const
-	{
-		// QChar is utf-16
-		// wchar_t is utf-16 on Windows or usc-4 on other platforms
-		static_assert(sizeof(QChar) <= sizeof(wchar_t));
-
-		wchar_t wc = 0;
-		[[maybe_unused]] auto size = QStringView(&c, 1).toWCharArray(&wc);
-		return Base::format(wc, context);
-	}
-};
 
 #endif
 

@@ -5,6 +5,7 @@
 #define UTILITY_WINERROR_HAS_QT 1
 #include <QString>
 #endif
+#include <Utility/EasyFmt.h>
 #include <Windows.h>
 
 namespace WinError
@@ -15,12 +16,12 @@ concept Receiver = std::is_invocable_v<F, wchar_t*, std::size_t>;
 template<Receiver F>
 inline auto format(F&& f, ::DWORD error = ::GetLastError())
 {
-    using namespace std::string_view_literals;
+	using namespace std::string_literals;
 
 	constexpr auto noError = L"";
 	if(error == 0) return f(noError, 0);
 
-    ::DWORD language;
+	::DWORD language = 0;
     const int ret = ::GetLocaleInfoEx(
         LOCALE_NAME_SYSTEM_DEFAULT, LOCALE_ILANGUAGE | LOCALE_RETURN_NUMBER,
         reinterpret_cast<::LPWSTR>(&language),
@@ -33,8 +34,9 @@ inline auto format(F&& f, ::DWORD error = ::GetLastError())
         reinterpret_cast<::LPWSTR>(&ptr), 0, nullptr);
     if(size == 0) 
     {
-        constexpr auto err = L"unformatted error"sv;
-        return f(err.data(), err.size());
+		auto formatError = ::GetLastError();
+		auto err = fmt::format(L"unformatted error: {}, fe: {}, lang: {}", error, formatError, language);
+		return f(err.data(), err.size());
     }
 
     struct Free

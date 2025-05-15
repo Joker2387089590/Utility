@@ -40,17 +40,17 @@ option(UTILITY_INCLUDE_SELF "make headers directly included" OFF)
 find_package(QT NAMES Qt5 Qt6 QUIET)
 if(QT_FOUND)
 	set(UTILITY_Qt "Qt${QT_VERSION_MAJOR}" CACHE STRING "select Qt version")
-	find_package(${UTILITY_Qt} QUIET COMPONENTS Core Widgets)
+	find_package(${UTILITY_Qt} QUIET COMPONENTS Core Widgets Sql Xml)
 endif()
 find_package(fmt CONFIG QUIET)
 find_package(fftw3 CONFIG QUIET)
 find_package(nlohmann_json CONFIG QUIET)
 find_package(Protobuf CONFIG QUIET)
 find_package(asio CONFIG QUIET)
+find_package(range-v3 CONFIG QUIET)
 
-# Qt
-option(UTILITY_USE_QT_CORE_WRAPPERS "use Qt::Core wrappers" ${${UTILITY_Qt}Core_FOUND})
-if(UTILITY_USE_QT_CORE_WRAPPERS)
+# Qt Core
+if(${${UTILITY_Qt}Core_FOUND})
 	list(APPEND sources
 		WaitForSignal.h
 		UnitValue.h
@@ -59,8 +59,9 @@ if(UTILITY_USE_QT_CORE_WRAPPERS)
 	)
 	list(APPEND link_libs ${UTILITY_Qt}::Core)
 endif()
-option(UTILITY_USE_QT_WIDGETS_WRAPPER "use Qt::Widgets wrappers" ${${UTILITY_Qt}Widgets_FOUND})
-if(UTILITY_USE_QT_WIDGETS_WRAPPER)
+
+# Qt Widgets
+if(${${UTILITY_Qt}Widgets_FOUND})
 	list(APPEND sources Validator.h)
 	list(APPEND link_libs ${UTILITY_Qt}::Widgets)
 endif()
@@ -72,39 +73,57 @@ if(fmt_FOUND)
 		list(APPEND definitions EASY_FMT_NO_CONSOLE)
 	endif()
 
-	option(UTILITY_EASYFMT_USE_QT "if EasyFmt support Qt" ${QT_FOUND})
-	if(UTILITY_EASYFMT_USE_QT)
+	if(${${UTILITY_Qt}Core_FOUND})
 		list(APPEND link_libs ${UTILITY_Qt}::Core)
 		list(APPEND sources FmtQt.h)
 	else()
 		list(APPEND definitions EASY_FMT_NO_QT)
 	endif()
 
-	set(UTILITY_EASYFMT_PRINT_COLOR "aqua" CACHE STRING "fmt::print stdout color")
-	list(APPEND definitions UTILITY_EASYFMT_PRINT_COLOR=${UTILITY_EASYFMT_PRINT_COLOR})
-
-	set(UTILITY_EASYFMT_ERROR_COLOR "crimson" CACHE STRING "fmt::print stderr color")
-	list(APPEND definitions UTILITY_EASYFMT_ERROR_COLOR=${UTILITY_EASYFMT_ERROR_COLOR})
-
-	set(UTILITY_EASYFMT_LINK_LIB "fmt::fmt-header-only" CACHE STRING "library to link for fmt")
-	
 	list(APPEND sources EasyFmt.h)
+
+	set(UTILITY_EASYFMT_PRINT_COLOR "aqua" CACHE STRING "fmt::print stdout color")
+	set(UTILITY_EASYFMT_ERROR_COLOR "crimson" CACHE STRING "fmt::print stderr color")
+	list(APPEND definitions 
+		UTILITY_EASYFMT_PRINT_COLOR=${UTILITY_EASYFMT_PRINT_COLOR}
+		UTILITY_EASYFMT_ERROR_COLOR=${UTILITY_EASYFMT_ERROR_COLOR}
+	)
+	
+	set(UTILITY_EASYFMT_LINK_LIB "fmt::fmt-header-only" CACHE STRING "library to link for fmt")
 	list(APPEND link_libs ${UTILITY_EASYFMT_LINK_LIB})
+
+	set(UTILITY_HAS_EASYFMT ON)
+else()
+	set(UTILITY_HAS_EASYFMT OFF)
+endif()
+
+# Qt Sql sqlite3
+if(${${UTILITY_Qt}Sql_FOUND} AND ${range-v3_FOUND} AND ${UTILITY_HAS_EASYFMT})
+	list(APPEND sources
+		Sqlite3.h
+	)
+	list(APPEND link_libs ${UTILITY_Qt}::Sql range-v3::range-v3)
 endif()
 
 # HTML
 if(fmt_FOUND)
-	option(UTILITY_HTML_USE_QT "if Html support Qt" ${QT_FOUND})
-	if(NOT UTILITY_HTML_USE_QT)
+	if(${QT_FOUND})
+		list(APPEND link_libs ${UTILITY_Qt}::Core)
+	else()
 		list(APPEND definitions UTILITY_HTML_NO_QT)
 	endif()
-	# TODO: add UTILITY_HTML_NO_QT_XML option
+	
+	if(${${UTILITY_Qt}Xml_FOUND})
+		list(APPEND link_libs ${UTILITY_Qt}::Xml)
+	else()
+		list(APPEND definitions UTILITY_HTML_NO_QT_XML)
+	endif()
+
 	list(APPEND sources Html.h)
 endif()
 
-# FFT
-option(UTILITY_USE_FFTW3 "use fftw3 wrapper" ${fftw3_FOUND})
-if(UTILITY_USE_FFTW3)
+# FFTw3
+if(${fftw3_FOUND})
 	list(APPEND sources FFT.h)
 endif()
 
@@ -116,12 +135,6 @@ endif()
 
 # convert Qt JSON and nlohmann json
 if(${nlohmann_json_FOUND} AND ${QT_FOUND})
-    set(UTILITY_USE_NLOHMANN_JSON_QT_DEFAULT 1)
-else()
-    set(UTILITY_USE_NLOHMANN_JSON_QT_DEFAULT 0)
-endif()
-option(UTILITY_USE_NLOHMANN_JSON_QT "use nlohmann json wrapper" ${UTILITY_USE_NLOHMANN_JSON_QT_DEFAULT})
-if(UTILITY_USE_NLOHMANN_JSON_QT)
 	list(APPEND sources NlohmannQt.h)
 	list(APPEND link_libs 
 		nlohmann_json::nlohmann_json
@@ -131,12 +144,6 @@ endif()
 
 # convert Qt JSON and Protobuf Struct
 if(${Protobuf_FOUND} AND ${QT_FOUND})
-    set(UTILITY_USE_PROTOBUF_QT_DEFAULT 1)
-else()
-    set(UTILITY_USE_PROTOBUF_QT_DEFAULT 0)
-endif()
-option(UTILITY_USE_PROTOBUF_QT "use protobuf Struct wrapper" ${UTILITY_USE_PROTOBUF_QT_DEFAULT})
-if(UTILITY_USE_PROTOBUF_QT)
 	list(APPEND sources ProtobufQt.h)
 	list(APPEND link_libs 
 		protobuf::libprotobuf
@@ -146,12 +153,6 @@ endif()
 
 # convert nlohmann json and Protobuf Struct
 if(${Protobuf_FOUND} AND ${nlohmann_json_FOUND})
-    set(UTILITY_USE_NLOHMANN_JSON_PROTOBUF_DEFAULT 1)
-else()
-    set(UTILITY_USE_NLOHMANN_JSON_PROTOBUF_DEFAULT 0)
-endif()
-option(UTILITY_USE_NLOHMANN_JSON_PROTOBUF "conversion between protobuf Struct and nlohmann json" ${UTILITY_USE_NLOHMANN_JSON_PROTOBUF_DEFAULT})
-if(UTILITY_USE_NLOHMANN_JSON_PROTOBUF)
 	list(APPEND sources NlohmannProtobuf.h)
 	list(APPEND link_libs
 		protobuf::libprotobuf
@@ -161,37 +162,24 @@ endif()
 
 # win error
 if(WIN32)
-    if(${QT_FOUND})
-        set(UTILITY_WINERROR_NO_QT_DEF 0)
-    else()
-        set(UTILITY_WINERROR_NO_QT_DEF 1)
-    endif()
-    option(UTILITY_WINERROR_NO_QT "disable Qt support in WinError.h" ${UTILITY_WINERROR_NO_QT_DEF})
-	list(APPEND sources WinError.h)
-	if(${UTILITY_WINERROR_NO_QT})
+	if(NOT ${QT_FOUND})
 		list(APPEND definitions UTILITY_WINERROR_NO_QT)
 	endif()
+	list(APPEND sources WinError.h)
 endif()
 
 # time tool
-if(${QT_FOUND})
-    option(UTILITY_TIMETOOL_NO_QDATETIME "disable Qt support in TimeTool.h" 0)
-else()
-    option(UTILITY_TIMETOOL_NO_QDATETIME "disable Qt support in TimeTool.h" 1)
-endif()
-if(${UTILITY_TIMETOOL_NO_QDATETIME})
+if(NOT ${QT_FOUND})
 	list(APPEND definitions UTILITY_TIMETOOL_NO_QDATETIME)
 endif()
 
 # asio
 if(${asio_FOUND} AND ${QT_FOUND})
-    option(UTILITY_USE_CO_ASIO_QT "use asio wrapper" 1)
-else()
-    option(UTILITY_USE_CO_ASIO_QT "use asio wrapper" 0)
-endif()
-if(UTILITY_USE_CO_ASIO_QT)
 	list(APPEND sources CoAsioQt.h)
-	list(APPEND link_libs asio::asio)
+	list(APPEND link_libs 
+		asio::asio
+		${UTILITY_Qt}::Core
+	)
 endif()
 
 ### add library

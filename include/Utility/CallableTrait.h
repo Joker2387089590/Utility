@@ -28,19 +28,23 @@ using FunctorType = typename SelectFunctor<F, IsFunctor<F>::value>::type;
 template<typename F>
 constexpr bool isFunction = std::is_function_v<std::remove_pointer_t<std::decay_t<F>>>;
 
-template<typename T, typename R, typename... Args>
+template<bool variadic, typename T, typename R, typename... Args>
 struct CallableImpl
 {
 	using Class = T;
 	using Return = R;
 	using Arguments = TList<Args...>;
-	using Invoker = R(Args...);
+	using Invoker = std::conditional_t<!variadic, R(Args...), R(Args..., ...)>;
+	static constexpr bool isVariadic = variadic;
 
 	template<template<typename Rx, typename... Ax> typename E>
 	using Expand = E<R, Args...>;
 
 	template<template<typename Tx, typename Rx, typename... Ax> typename E>
 	using ExpandClass = E<T, R, Args...>;
+
+	template<template<bool vx, typename Tx, typename Rx, typename... Ax> typename E>
+	using ExpandAll = E<variadic, T, R, Args...>;
 };
 
 template<typename F> struct CallableTrait;
@@ -53,49 +57,91 @@ struct CallableTrait : CallableTrait<FunctorType<std::decay_t<F>>> {};
 template<typename R, typename... Args>
 struct CallableTrait<R(*)(Args...)>
 {
-	using type = CallableImpl<void, R, Args...>;
+	using type = CallableImpl<false, void, R, Args...>;
+};
+
+template<typename R, typename... Args>
+struct CallableTrait<R(*)(Args..., ...)>
+{
+	using type = CallableImpl<true, void, R, Args...>;
 };
 
 // member function
 template<typename R, typename T, typename... Args>
 struct CallableTrait<R(T::*)(Args...)>
 {
-	using type = CallableImpl<T, R, Args...>;
+	using type = CallableImpl<false, T, R, Args...>;
+};
+
+template<typename R, typename T, typename... Args>
+struct CallableTrait<R(T::*)(Args..., ...)>
+{
+	using type = CallableImpl<true, T, R, Args...>;
 };
 
 // const member function
 template<typename R, typename T, typename... Args>
 struct CallableTrait<R(T::*)(Args...) const>
 {
-	using type = CallableImpl<const T, R, Args...>;
+	using type = CallableImpl<false, const T, R, Args...>;
+};
+
+template<typename R, typename T, typename... Args>
+struct CallableTrait<R(T::*)(Args..., ...) const>
+{
+	using type = CallableImpl<true, const T, R, Args...>;
 };
 
 // left-ref member function
 template<typename R, typename T, typename... Args>
 struct CallableTrait<R(T::*)(Args...) &>
 {
-	using type = CallableImpl<T&, R, Args...>;
+	using type = CallableImpl<false, T&, R, Args...>;
+};
+
+template<typename R, typename T, typename... Args>
+struct CallableTrait<R(T::*)(Args..., ...) &>
+{
+	using type = CallableImpl<true, T&, R, Args...>;
 };
 
 // right-ref member function
 template<typename R, typename T, typename... Args>
 struct CallableTrait<R(T::*)(Args...) &&>
 {
-	using type = CallableImpl<T&&, R, Args...>;
+	using type = CallableImpl<false, T&&, R, Args...>;
+};
+
+template<typename R, typename T, typename... Args>
+struct CallableTrait<R(T::*)(Args..., ...) &&>
+{
+	using type = CallableImpl<true, T&&, R, Args...>;
 };
 
 // const-left-ref member function
 template<typename R, typename T, typename... Args>
 struct CallableTrait<R(T::*)(Args...) const&>
 {
-	using type = CallableImpl<const T&, R, Args...>;
+	using type = CallableImpl<false, const T&, R, Args...>;
+};
+
+template<typename R, typename T, typename... Args>
+struct CallableTrait<R(T::*)(Args..., ...) const&>
+{
+	using type = CallableImpl<true, const T&, R, Args...>;
 };
 
 // const-right-ref member function
 template<typename R, typename T, typename... Args>
 struct CallableTrait<R(T::*)(Args...) const&&>
 {
-	using type = CallableImpl<const T&&, R, Args...>;
+	using type = CallableImpl<false, const T&&, R, Args...>;
+};
+
+template<typename R, typename T, typename... Args>
+struct CallableTrait<R(T::*)(Args..., ...) const&&>
+{
+	using type = CallableImpl<true, const T&&, R, Args...>;
 };
 
 // std::function

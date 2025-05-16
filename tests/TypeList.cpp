@@ -1,15 +1,19 @@
 #include "../include/Utility/TypeList.h"
 #include "common.h"
 
-template<typename L3>
-concept HasAt5 = requires { typename L3::template At<5>; };
+template<template<std::size_t> typename At, std::size_t N, typename = void>
+struct HasAtN : std::false_type {};
+
+template<template<std::size_t> typename At, std::size_t N>
+struct HasAtN<At, N, std::void_t<At<N>>> : std::true_type {};
 
 int main()
 {
     using namespace Types;
 
-    using Empty = TList<>;
-    static_assert(std::is_trivially_constructible_v<Empty>);
+    constexpr auto empty = TList();
+    using Empty = std::remove_const_t<decltype(empty)>;
+    static_assert(std::is_same_v<Empty, TList<>>);
     static_assert(Empty::size == 0);
 
     using L1 = Empty::Append<int>;
@@ -88,7 +92,9 @@ int main()
     static_assert(std::is_same_v<L3::At<2>, int>);
     static_assert(std::is_same_v<L3::At<3>, char>);
     static_assert(std::is_same_v<L3::At<4>, double>);
-    static_assert(!HasAt5<L3>);
+#if defined(__cpp_concepts)
+    static_assert(!HasAtN<L3::At, 5>::value);
+#endif
 
     using L9 = L3::Select<0, 2, 4>;
     static_assert(L9::size == 3);
@@ -110,5 +116,22 @@ int main()
     static_assert(L13::size == 3);
     static_assert(std::is_same_v<TList<short, char, double>, L13>);
 
+    constexpr auto listFromArgs = TList(0, 1u, 3.14f, 2.718, 'a', "hello");
+    using ListFromArgs = std::remove_const_t<decltype(listFromArgs)>;
+    static_assert(std::is_same_v<ListFromArgs, TList<int, unsigned, float, double, char, const char*>>);
 
+    using L19 = Merge<void, L1, L2>;
+    static_assert(L19::size == 1 + L1::size + L2::size);
+    static_assert(std::is_same_v<TList<void, int, int, char, double>, L19>);
+
+    using L20 = From<L5>;
+    static_assert(L20::size == 5);
+    static_assert(std::is_same_v<L4, L20>);
+
+    using L21 = Zip<L4, L3>;
+    static_assert(L21::size == 5);
+    static_assert(std::is_same_v<TList<TList<bool*, bool>, TList<short*, short>, TList<int*, int>, TList<char*, char>, TList<double*, double>>, L21>);
+
+    using L22 = Unite<Empty, L1, L2>;
+    static_assert(std::is_same_v<TList<int, char, double>, L22>);
 }

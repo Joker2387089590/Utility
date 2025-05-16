@@ -218,6 +218,12 @@ target_link_libraries(Utility INTERFACE ${link_libs})
 
 target_compile_definitions(Utility INTERFACE ${definitions})
 
+### add tests
+include(CTest)
+if(BUILD_TESTING)
+	add_subdirectory(tests)
+endif()
+
 ### install
 install(
 	TARGETS Utility

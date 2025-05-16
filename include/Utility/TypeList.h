@@ -73,12 +73,20 @@ struct ReverseTrait<> { using type = TList<>; };
 /// at
 template<std::size_t i, typename... Ts> struct AtTrait;
 
+#if defined(__cpp_concepts)
+template<std::size_t i, typename T, typename... Ts> requires (i <= sizeof...(Ts))
+struct AtTrait<i, T, Ts...>
+{
+	using type = typename AtTrait<i - 1, Ts...>::type;
+};
+#else
 template<std::size_t i, typename T, typename... Ts>
 struct AtTrait<i, T, Ts...>
 {
 	static_assert(i <= sizeof...(Ts), "The index of At is out of range!");
 	using type = typename AtTrait<i - 1, Ts...>::type;
 };
+#endif
 
 template<typename T, typename... Ts>
 struct AtTrait<0, T, Ts...> { using type = T; };
@@ -246,6 +254,14 @@ using SizeConstant = std::integral_constant<std::size_t, i>;
 template<typename... Ts>
 struct TListBase
 {
+	// TList can not save values
+	constexpr TListBase(...) noexcept {}
+	constexpr TListBase(const TListBase&) noexcept = default;
+	constexpr TListBase& operator=(const TListBase&) & noexcept = default;
+	constexpr TListBase(TListBase&&) noexcept = default;
+	constexpr TListBase& operator=(TListBase&&) & noexcept = default;
+	constexpr ~TListBase() noexcept = default;
+	
 	static constexpr auto size = SizeConstant<sizeof...(Ts)>{};
 
 	static constexpr auto empty = std::bool_constant<sizeof...(Ts) == 0>{};
@@ -328,12 +344,14 @@ struct TListBase
 
 /// Empty TList
 template<>
-struct TList<> : TListBase<> {};
+struct TList<> : TListBase<> { using TListBase<>::TListBase; };
 
 /// TList
 template<typename... Ts>
 struct TList : TListBase<Ts...>
 {
+	using TListBase<Ts...>::TListBase;
+
 	using TListBase<Ts...>::size;
 
 	// TList<T0, T1, ..., Ti, ...> => Ti

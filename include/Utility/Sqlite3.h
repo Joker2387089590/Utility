@@ -79,9 +79,8 @@ struct Field
 	inline static constexpr auto meta = QMetaType::fromType<T>();
 	FieldPack operator()(const QString& name, QStringList constraints) const noexcept;
 
-	template<typename... Cs,
-			 std::enable_if_t<(std::is_constructible_v<Cs, QString> && ...), int> = 0>
-	FieldPack operator()(const QString& name, Cs&&... cs) const noexcept;
+	template<typename... Cs, std::enable_if_t<(std::is_constructible_v<QString, Cs> && ...), int> = 0>
+	FieldPack operator()(const QString& name, Cs&&... constraints) const noexcept;
 };
 
 /// 封装 sqlite3 的类型系统，见 https://www.sqlite.org/datatype3.html
@@ -143,11 +142,11 @@ FieldPack Field<T, x>::operator()(const QString& name, QStringList constraints) 
 	return {*this, name, std::move(constraints)};
 }
 
-template<typename T, auto& x>
-template<typename... Cs, std::enable_if_t<(std::is_constructible_v<Cs, QString> && ...), int>>
-FieldPack Field<T, x>::operator()(const QString& name, Cs&&... constraints) const noexcept
+template<typename T, auto& text>
+template<typename... Cs, std::enable_if_t<(std::is_constructible_v<QString, Cs> && ...), int>>
+FieldPack Field<T, text>::operator()(const QString& name, Cs&&... constraints) const noexcept
 {
-	return {*this, name, QStringList{QString(constraints)...}};
+	return (*this)(name, QStringList{QString(constraints)...});
 }
 
 class FieldList
@@ -233,11 +232,11 @@ public:
 			columns.append("'{}' {} {}"_qfmt(f.name, typeName, f.constraints.join(u' ')));
 		}
 
-		std::u16string_view options[] = {
-			u"",
-			u"WITHIOUT ROWID",
-			u"STRICT",
-			u"WITHIOUT ROWID, STRICT",
+		static constexpr std::array options{
+			u""sv,
+			u"WITHIOUT ROWID"sv,
+			u"STRICT"sv,
+			u"WITHIOUT ROWID, STRICT"sv,
 		};
 		auto option = options[(op.withoutRowId ? 0 : 0b01) + (op.strict ? 0 : 0b10)];
 

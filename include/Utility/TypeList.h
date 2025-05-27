@@ -481,7 +481,41 @@ struct UniteTrait<TList<Ready...>>
 
 template<typename... Lists>
 using Unite = typename UniteTrait<Lists...>::type;
-}
+
+template<auto v>
+struct NonType
+{
+	static constexpr auto value = v;
+	using type = decltype(v);
+};
+
+template<auto v>
+inline constexpr auto nonType = NonType<v>{};
+
+template<typename... Vs>
+struct NonTypeList 
+{
+	static_assert(
+		(std::is_void_v<std::void_t<decltype(Vs::value)>> && ...),
+		"Vs should be a list of types with static member 'value'"
+	);
+
+	template<template<auto...> typename F>
+	using Apply = F<Vs::value...>;
+};
+
+template<typename Values>
+struct GetValueTrait;
+
+template<template<auto...> typename F, auto... values>
+struct GetValueTrait<F<values...>>
+{
+	using type = NonTypeList<NonType<values>...>;
+};
+
+template<typename F>
+using GetValue = typename GetValueTrait<F>::type;
+} // namespace Types::Detail
 
 namespace Types
 {
@@ -498,4 +532,8 @@ using Detail::Zip;
 
 /// Unite<TList<T1, T2, T3>, TList<T1, T2, T4>> => TList<T1, T2, T3, T4>
 using Detail::Unite;
+
+using Detail::NonType;
+using Detail::NonTypeList;
+using Detail::GetValue;
 }

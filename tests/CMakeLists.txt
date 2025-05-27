@@ -15,3 +15,4 @@ function(add_ctest_task name)
 endfunction()
 
 add_ctest_task(TypeList TypeList.cpp)
+add_ctest_task(StrEnums StrEnums.cpp)

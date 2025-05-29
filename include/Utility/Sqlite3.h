@@ -234,11 +234,11 @@ public:
 
 		static constexpr std::array options{
 			u""sv,
-			u"WITHIOUT ROWID"sv,
+			u"WITHOUT ROWID"sv,
 			u"STRICT"sv,
-			u"WITHIOUT ROWID, STRICT"sv,
+			u"WITHOUT ROWID, STRICT"sv,
 		};
-		auto option = options[(op.withoutRowId ? 0 : 0b01) + (op.strict ? 0 : 0b10)];
+		auto option = options[(op.withoutRowId ? 0b01 : 0b00) + (op.strict ? 0b10 : 0b00)];
 
 		auto statement = fmt::format(u"CREATE {} TABLE {} [{}] ({}) {}",
 			op.temporary ? u"TEMPORARY"sv : u""sv,

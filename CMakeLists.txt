@@ -220,7 +220,11 @@ target_compile_definitions(Utility INTERFACE ${definitions})
 
 ### add tests
 include(CTest)
-if(BUILD_TESTING)
+if(DEFINED UTILITY_BUILD_TESTS)
+    set(BUILD_TESTING ${UTILITY_BUILD_TESTS})
+endif()
+option(UTILITY_BUILD_TESTS "build tests" ${BUILD_TESTING})
+if(${UTILITY_BUILD_TESTS})
 	add_subdirectory(tests)
 endif()
 

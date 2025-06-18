@@ -16,3 +16,4 @@ endfunction()
 
 add_ctest_task(TypeList TypeList.cpp)
 add_ctest_task(StrEnums StrEnums.cpp)
+add_ctest_task(AsioQcoro asio-qt.cpp)

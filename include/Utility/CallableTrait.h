@@ -539,7 +539,6 @@ using Detail::ExpandClass;
 /// struct A { int foo(); };
 /// A& foo2();
 /// using R = ReturnOf<&A::foo>; // R == int
-/// using C2 = ClassOf<foo2>; // C2 == A&
 using Detail::ReturnOf;
 
 /// struct A { void foo() const&&; };

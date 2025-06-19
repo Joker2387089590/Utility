@@ -52,7 +52,7 @@ public:
 
 	QString str(char format = 'f', int precision = 3) const
 	{
-        const QChar units[2]{unit(), '\0'};
+        const QChar units[2]{unit(), u'\0'};
         return QString::number(count(), format, precision) + QString(units);
 	}
 

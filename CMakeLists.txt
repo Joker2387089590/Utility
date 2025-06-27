@@ -98,7 +98,7 @@ else()
 endif()
 
 # Qt Sql sqlite3
-if(${${UTILITY_Qt}Sql_FOUND} AND ${range-v3_FOUND} AND ${UTILITY_HAS_EASYFMT})
+if("${${UTILITY_Qt}Sql_FOUND}" AND ${range-v3_FOUND} AND ${UTILITY_HAS_EASYFMT})
 	list(APPEND sources
 		Sqlite3.h
 	)
